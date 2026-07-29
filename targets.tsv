@@ -1,0 +1,1000 @@
+mojo-scipy	scipy	signal/fft/linalg/optimize/interpolate/stats kernels
+mojo-numpy	numpy	core ufuncs, reductions, sorting, linalg, random
+mojo-pandas	pandas	columnar groupby/join/sort/rolling/resample kernels
+mojo-pillow	pillow	image resize/convolve/colorspace/blend kernels
+mojo-opencv-python	opencv-python	filters, warps, feature detection, morphology
+mojo-scikit-image	scikit-image	filters, morphology, transforms, segmentation
+mojo-networkx	networkx	graph traversal, shortest path, centrality, components
+mojo-statsmodels	statsmodels	OLS/GLM/ARIMA fitting kernels
+mojo-xgboost	xgboost	histogram gradient boosting trees
+mojo-lightgbm	lightgbm	leaf-wise boosted trees with histogram binning
+mojo-numba	numba	typed loop compilation for a Python subset
+mojo-sympy	sympy	polynomial arithmetic, simplification, matrices
+mojo-librosa	librosa	STFT, mel spectrogram, MFCC, resampling, beat tracking
+mojo-soundfile	soundfile	PCM/WAV/FLAC decode-encode
+mojo-shapely	shapely	planar geometry predicates and boolean ops
+mojo-pyproj	pyproj	cartographic projections and datum transforms
+mojo-rasterio	rasterio	raster windowed reads, resampling, band math
+mojo-faiss-cpu	faiss-cpu	flat/IVF/PQ vector search indexes
+mojo-annoy	annoy	random projection forest ANN index
+mojo-hnswlib	hnswlib	HNSW graph ANN index
+mojo-gensim	gensim	word2vec, doc2vec, LSI, similarity queries
+mojo-nltk	nltk	tokenizers, stemmers, ngrams, edit distance
+mojo-spacy	spacy	tokenizer, matcher, and vector ops
+mojo-tokenizers	tokenizers	BPE / WordPiece / Unigram training and encoding
+mojo-tiktoken	tiktoken	byte-pair encoding with regex pre-tokenization
+mojo-regex	regex	backtracking regex engine
+mojo-orjson	orjson	SIMD JSON parse and serialize
+mojo-ujson	ujson	fast JSON parse and serialize
+mojo-msgpack	msgpack	msgpack pack/unpack
+mojo-cbor2	cbor2	CBOR encode/decode
+mojo-protobuf	protobuf	wire-format encode/decode
+mojo-lz4	lz4	LZ4 block and frame compression
+mojo-zstandard	zstandard	zstd compress/decompress bindings and framing
+mojo-brotli	brotli	brotli compress/decompress
+mojo-snappy	python-snappy	snappy block compression
+mojo-xxhash	xxhash	xxh32/xxh64/xxh3 hashing
+mojo-mmh3	mmh3	MurmurHash3 32/128
+mojo-blake3	blake3	BLAKE3 tree hashing
+mojo-cityhash	cityhash	CityHash family
+mojo-pycryptodome	pycryptodome	AES, ChaCha20, SHA2, HMAC primitives
+mojo-cryptography	cryptography	AEAD ciphers, digests, KDFs
+mojo-bcrypt	bcrypt	bcrypt KDF
+mojo-argon2-cffi	argon2-cffi	Argon2 KDF
+mojo-bitarray	bitarray	packed bit vectors and bitwise ops
+mojo-pybloom-live	pybloom-live	bloom and scalable bloom filters
+mojo-datasketch	datasketch	MinHash, HyperLogLog, LSH
+mojo-hyperloglog	hyperloglog	HyperLogLog cardinality estimation
+mojo-sortedcontainers	sortedcontainers	sorted list/dict/set
+mojo-pyroaring	pyroaring	roaring bitmaps
+mojo-intervaltree	intervaltree	interval tree queries
+mojo-rtree	rtree	R-tree spatial index
+mojo-pyclipper	pyclipper	polygon clipping and offsetting
+mojo-triangle	triangle	constrained Delaunay triangulation
+mojo-trimesh	trimesh	mesh boolean, sampling, ray queries
+mojo-open3d	open3d	point cloud registration, voxel ops, KD-tree
+mojo-pyvista	pyvista	mesh filters and array wrangling
+mojo-numexpr	numexpr	fused elementwise array expression evaluation
+mojo-bottleneck	bottleneck	fast moving-window and nan-aware reductions
+mojo-numagg	numagg	grouped and windowed aggregations
+mojo-dask	dask	blocked array/dataframe scheduling and kernels
+mojo-polars	polars	columnar expression engine kernels
+mojo-duckdb	duckdb	vectorized SQL execution kernels
+mojo-sqlglot	sqlglot	SQL parse, transpile, optimize
+mojo-pyarrow	pyarrow	arrow compute kernels
+mojo-fastparquet	fastparquet	parquet encode/decode
+mojo-h5py	h5py	HDF5 chunked read/write and filters
+mojo-zarr	zarr	chunked ndarray store with codecs
+mojo-netcdf4	netcdf4	netCDF variable read/write
+mojo-blosc2	blosc2	blocked shuffle+compress codec
+mojo-imagehash	imagehash	perceptual hashes: ahash, phash, dhash, whash
+mojo-qrcode	qrcode	QR encode with Reed-Solomon
+mojo-pyzbar	pyzbar	1D/2D barcode decode
+mojo-barcode	python-barcode	linear barcode generation
+mojo-reedsolo	reedsolo	Reed-Solomon error correction
+mojo-crcmod	crcmod	parameterized CRC computation
+mojo-bitstring	bitstring	bit-level packing and parsing
+mojo-construct	construct	declarative binary struct parse/build
+mojo-kaitaistruct	kaitaistruct	binary format runtime
+mojo-filterpy	filterpy	Kalman, EKF, UKF, particle filters
+mojo-pykalman	pykalman	Kalman smoothing and EM
+mojo-control	control	state-space and transfer function ops
+mojo-cvxpy	cvxpy	convex problem canonicalization
+mojo-osqp	osqp	operator splitting QP solver
+mojo-ecos	ecos	second-order cone solver
+mojo-scs	scs	conic splitting solver
+mojo-pulp	pulp	MILP model building and simplex
+mojo-ortools	ortools	CP-SAT propagation and routing heuristics
+mojo-deap	deap	genetic algorithm operators
+mojo-optuna	optuna	TPE sampler and pruners
+mojo-hyperopt	hyperopt	TPE and annealing search
+mojo-scikit-optimize	scikit-optimize	Bayesian optimization with GP/forest surrogates
+mojo-nevergrad	nevergrad	derivative-free optimizers
+mojo-emcee	emcee	affine-invariant MCMC sampler
+mojo-pymc	pymc	HMC/NUTS sampling kernels
+mojo-arviz	arviz	posterior diagnostics: ESS, rhat, HDI
+mojo-pomegranate	pomegranate	HMM, Bayes nets, mixture models
+mojo-hmmlearn	hmmlearn	HMM forward-backward and Viterbi
+mojo-prophet	prophet	additive trend/seasonality fitting
+mojo-statsforecast	statsforecast	ETS, ARIMA, Theta forecasting
+mojo-tslearn	tslearn	DTW, soft-DTW, time series clustering
+mojo-dtaidistance	dtaidistance	DTW distance and clustering
+mojo-stumpy	stumpy	matrix profile computation
+mojo-ruptures	ruptures	change point detection
+mojo-pyod	pyod	outlier detection algorithms
+mojo-umap-learn	umap-learn	UMAP graph construction and embedding
+mojo-opentsne	openTSNE	t-SNE with Barnes-Hut and FFT interpolation
+mojo-hdbscan	hdbscan	mutual reachability + condensed tree clustering
+mojo-kmodes	kmodes	k-modes and k-prototypes clustering
+mojo-scikit-fuzzy	scikit-fuzzy	fuzzy c-means and inference
+mojo-imbalanced-learn	imbalanced-learn	SMOTE and resampling
+mojo-category-encoders	category-encoders	target, hashing, ordinal encoders
+mojo-featuretools	featuretools	deep feature synthesis primitives
+mojo-shap	shap	TreeSHAP and kernel SHAP
+mojo-lime	lime	local surrogate explanation sampling
+mojo-river	river	online learning models
+mojo-vowpalwabbit	vowpalwabbit	online linear learning with hashing
+mojo-implicit	implicit	ALS and BPR matrix factorization
+mojo-surprise	surprise	SVD/SVD++/kNN recommenders
+mojo-lightfm	lightfm	hybrid matrix factorization
+mojo-rank-bm25	rank-bm25	BM25 ranking
+mojo-whoosh	whoosh	inverted index and query evaluation
+mojo-rapidfuzz	rapidfuzz	Levenshtein and fuzzy string matching
+mojo-levenshtein	python-Levenshtein	edit distance and ratio
+mojo-jellyfish	jellyfish	phonetic and string distance
+mojo-pyahocorasick	pyahocorasick	Aho-Corasick multi-pattern matching
+mojo-marisa-trie	marisa-trie	static succinct trie
+mojo-pygtrie	pygtrie	trie structures
+mojo-editdistance	editdistance	Levenshtein distance
+mojo-textdistance	textdistance	string distance metric collection
+mojo-ftfy	ftfy	unicode fixing and normalization
+mojo-unidecode	unidecode	unicode to ascii transliteration
+mojo-chardet	chardet	charset detection
+mojo-charset-normalizer	charset-normalizer	charset detection and normalization
+mojo-beautifulsoup4	beautifulsoup4	HTML parse tree and selectors
+mojo-lxml	lxml	XML/HTML parsing and XPath
+mojo-html5lib	html5lib	HTML5 tokenizer and tree builder
+mojo-selectolax	selectolax	fast HTML parse and CSS select
+mojo-markdown-it-py	markdown-it-py	CommonMark tokenizer and renderer
+mojo-mistune	mistune	markdown parse and render
+mojo-pyyaml	pyyaml	YAML parse and emit
+mojo-tomli	tomli	TOML parse
+mojo-jsonschema	jsonschema	JSON schema validation
+mojo-pydantic	pydantic	typed model validation and coercion
+mojo-jmespath	jmespath	JSON query evaluation
+mojo-jsonpath-ng	jsonpath-ng	JSONPath evaluation
+mojo-pandas-ta	pandas-ta	technical analysis indicators
+mojo-ta-lib	ta-lib	technical analysis indicator kernels
+mojo-quantlib	quantlib	date math, curves, option pricing
+mojo-vollib	py-vollib	Black-Scholes pricing and greeks
+mojo-mplfinance	mplfinance	OHLC aggregation and plot data prep
+mojo-empyrical	empyrical	risk and performance metrics
+mojo-pyfolio	pyfolio	portfolio analytics
+mojo-zipline	zipline	backtest event loop and blotter
+mojo-vectorbt	vectorbt	vectorized backtesting kernels
+mojo-biopython	biopython	sequence alignment and parsing
+mojo-pysam	pysam	SAM/BAM/CRAM parsing
+mojo-scikit-bio	scikit-bio	sequence distance and diversity
+mojo-rdkit	rdkit	molecule fingerprints and substructure search
+mojo-mdanalysis	mdanalysis	trajectory analysis kernels
+mojo-ase	ase	atomic structure neighbor lists and forces
+mojo-astropy	astropy	coordinate transforms, time scales, WCS
+mojo-healpy	healpy	HEALPix pixelization and spherical harmonics
+mojo-pyfftw	pyfftw	FFT planning and execution
+mojo-pywavelets	pywavelets	discrete wavelet transforms
+mojo-scikit-rf	scikit-rf	S-parameter network math
+mojo-pyaudio	pyaudio	PCM stream buffering
+mojo-pydub	pydub	audio segment mixing and effects
+mojo-noisereduce	noisereduce	spectral gating noise reduction
+mojo-webrtcvad	webrtcvad	voice activity detection
+mojo-resampy	resampy	band-limited sample rate conversion
+mojo-av	av	container demux and frame timing math
+mojo-imageio	imageio	image encode/decode dispatch
+mojo-tifffile	tifffile	TIFF read/write
+mojo-pypng	pypng	PNG encode/decode
+mojo-cairosvg	cairosvg	SVG rasterization
+mojo-svgpathtools	svgpathtools	SVG path geometry
+mojo-fonttools	fonttools	font table parse, subset, glyph outlines
+mojo-freetype-py	freetype-py	glyph rasterization
+mojo-pymupdf	pymupdf	PDF page parse and text extraction
+mojo-pdfminer-six	pdfminer.six	PDF layout analysis
+mojo-reportlab	reportlab	PDF content stream generation
+mojo-docx	python-docx	docx package parse and write
+mojo-openpyxl	openpyxl	xlsx read/write
+mojo-xlsxwriter	xlsxwriter	xlsx write with shared strings
+mojo-psutil	psutil	process and system metric sampling
+mojo-watchdog	watchdog	filesystem event coalescing
+mojo-uvloop	uvloop	event loop primitives
+mojo-httptools	httptools	HTTP/1 request parsing
+mojo-h11	h11	HTTP/1.1 state machine
+mojo-h2	h2	HTTP/2 framing and HPACK
+mojo-hpack	hpack	HPACK header compression
+mojo-websockets	websockets	websocket framing and masking
+mojo-dnspython	dnspython	DNS wire format encode/decode
+mojo-netaddr	netaddr	IP address and network math
+mojo-maxminddb	maxminddb	MMDB geoip lookup
+mojo-user-agents	user-agents	user agent string parsing
+mojo-uritemplate	uritemplate	URI template expansion
+mojo-furl	furl	URL parse and manipulation
+mojo-dateutil	python-dateutil	date parsing and recurrence rules
+mojo-pytz	pytz	timezone offset resolution
+mojo-pendulum	pendulum	datetime arithmetic and parsing
+mojo-croniter	croniter	cron expression expansion
+mojo-humanize	humanize	number and duration formatting
+mojo-babel	babel	locale-aware number and date formatting
+mojo-phonenumbers	phonenumbers	phone number parse and validate
+mojo-price-parser	price-parser	price string parsing
+mojo-num2words	num2words	number to words conversion
+mojo-roman	roman	roman numeral conversion
+mojo-pint	pint	unit parsing and dimensional analysis
+mojo-uncertainties	uncertainties	error propagation arithmetic
+mojo-mpmath	mpmath	arbitrary precision arithmetic
+mojo-gmpy2	gmpy2	multiprecision integer and rational math
+mojo-primesieve	primesieve	prime sieving
+mojo-sympy-plot	sympy-plot	plotting sample evaluation
+mojo-perlin-noise	perlin-noise	perlin and simplex noise
+mojo-noise	noise	simplex and perlin noise generation
+mojo-opensimplex	opensimplex	OpenSimplex noise
+mojo-pymunk	pymunk	2D rigid body physics
+mojo-pybullet	pybullet	collision detection and dynamics
+mojo-box2d-py	box2d-py	2D physics solver
+mojo-pygame	pygame	blitting, sprite collision, mixer
+mojo-moderngl	moderngl	buffer and vertex math helpers
+mojo-pyrr	pyrr	3D math: vectors, matrices, quaternions
+mojo-transforms3d	transforms3d	rotation representation conversions
+mojo-quaternion	quaternion	quaternion array arithmetic
+mojo-scipy-spatial	scipy-spatial	KD-tree, convex hull, Voronoi
+mojo-noise-reduction	noise-reduction	spectral subtraction
+mojo-colour-science	colour-science	colour space conversion and appearance models
+mojo-colormath	colormath	colour space conversion and delta-E
+mojo-webcolors	webcolors	colour name and hex conversion
+mojo-pypinyin	pypinyin	chinese to pinyin conversion
+mojo-jieba	jieba	chinese word segmentation
+mojo-mecab-python3	mecab-python3	japanese morphological analysis
+mojo-konlpy	konlpy	korean morphological analysis
+mojo-sacrebleu	sacrebleu	BLEU, chrF, TER metrics
+mojo-rouge-score	rouge-score	ROUGE metrics
+mojo-jiwer	jiwer	WER and CER computation
+mojo-evaluate	evaluate	metric computation kernels
+mojo-torchmetrics	torchmetrics	classification and regression metrics
+mojo-seqeval	seqeval	sequence labelling metrics
+mojo-pyemd	pyemd	earth mover distance
+mojo-pot	pot	optimal transport solvers
+mojo-dcor	dcor	distance correlation
+mojo-minepy	minepy	maximal information coefficient
+mojo-pingouin	pingouin	statistical tests and effect sizes
+mojo-lifelines	lifelines	survival analysis fitters
+mojo-scikit-survival	scikit-survival	survival models and metrics
+mojo-statsmodels-tsa	statsmodels-tsa	time series decomposition and tests
+mojo-linearmodels	linearmodels	panel and IV estimators
+mojo-mlxtend	mlxtend	frequent itemsets and association rules
+mojo-apyori	apyori	apriori itemset mining
+mojo-prefixspan	prefixspan	sequential pattern mining
+mojo-scikit-multilearn	scikit-multilearn	multi-label transformation and classification
+mojo-pyclustering	pyclustering	clustering algorithm collection
+mojo-kneed	kneed	knee point detection
+mojo-nolds	nolds	nonlinear measures: lyapunov, hurst, entropy
+mojo-antropy	antropy	entropy and complexity measures
+mojo-pyentrp	pyentrp	sample and permutation entropy
+mojo-tsfresh	tsfresh	time series feature extraction
+mojo-catch22	catch22	canonical time series characteristics
+mojo-sktime	sktime	time series transformers and classifiers
+mojo-pyclipper2	pyclipper2	polygon boolean ops and offsetting
+mojo-mapbox-earcut	mapbox-earcut	polygon triangulation
+mojo-bezier	bezier	bezier curve intersection and subdivision
+mojo-scikit-geometry	scikit-geometry	computational geometry predicates
+mojo-pygeos	pygeos	vectorized planar geometry
+mojo-geopandas	geopandas	spatial joins and overlay
+mojo-h3	h3	hexagonal hierarchical geospatial indexing
+mojo-s2sphere	s2sphere	spherical cell indexing
+mojo-geohash2	geohash2	geohash encode/decode
+mojo-haversine	haversine	great circle distance
+mojo-pyquadkey2	pyquadkey2	quadkey tiling
+mojo-mercantile	mercantile	web mercator tile math
+mojo-morton-py	morton-py	morton z-order curve encoding
+mojo-hilbertcurve	hilbertcurve	hilbert curve mapping
+mojo-pyflann	pyflann	approximate nearest neighbour search
+mojo-nmslib	nmslib	non-metric space ANN
+mojo-pynndescent	pynndescent	NN-descent approximate KNN graph
+mojo-scann	scann	learned quantization vector search
+mojo-usearch	usearch	SIMD vector search index
+mojo-simsimd	simsimd	SIMD distance kernels
+mojo-stringzilla	stringzilla	SIMD string search and sort
+mojo-pyfasthash	pyfasthash	fast non-cryptographic hashes
+mojo-siphash	siphash	SipHash-2-4
+mojo-highwayhash	highwayhash	HighwayHash SIMD hashing
+mojo-t1ha	t1ha	fast hash family
+mojo-wyhash	wyhash	wyhash
+mojo-pyseq	pyseq	sequence alignment
+mojo-parasail	parasail	SIMD Smith-Waterman alignment
+mojo-edlib	edlib	edit distance alignment
+mojo-mappy	mappy	minimizer seeding and chaining
+mojo-pyfastx	pyfastx	FASTA/FASTQ indexed access
+mojo-dnaio	dnaio	FASTQ parse and write
+mojo-cutadapt	cutadapt	adapter trimming alignment
+mojo-umi-tools	umi-tools	UMI deduplication
+mojo-bx-python	bx-python	interval and alignment utilities
+mojo-pybedtools	pybedtools	genomic interval arithmetic
+mojo-pybigwig	pyBigWig	bigWig interval query
+mojo-cyvcf2	cyvcf2	VCF parsing
+mojo-scanpy	scanpy	single cell neighbours, PCA, clustering
+mojo-anndata	anndata	annotated matrix slicing
+mojo-igraph	igraph	graph algorithms
+mojo-graph-tool	graph-tool	graph algorithms and statistics
+mojo-retworkx	retworkx	graph algorithms in a typed core
+mojo-louvain	python-louvain	louvain community detection
+mojo-leidenalg	leidenalg	leiden community detection
+mojo-cdlib	cdlib	community detection collection
+mojo-node2vec	node2vec	biased random walk embeddings
+mojo-karateclub	karateclub	graph embedding algorithms
+mojo-stellargraph	stellargraph	graph machine learning kernels
+mojo-dgl	dgl	graph message passing kernels
+mojo-torch-scatter	torch-scatter	segmented scatter reductions
+mojo-torch-sparse	torch-sparse	sparse matrix ops
+mojo-scipy-sparse	scipy-sparse	CSR/CSC/COO sparse kernels
+mojo-sparse	sparse	N-dimensional sparse arrays
+mojo-pyamg	pyamg	algebraic multigrid solvers
+mojo-petsc4py	petsc4py	Krylov solvers and preconditioners
+mojo-scikit-sparse	scikit-sparse	sparse cholesky
+mojo-sparseqr	sparseqr	sparse QR decomposition
+mojo-scikit-umfpack	scikit-umfpack	sparse LU solve
+mojo-pypardiso	pypardiso	sparse direct solver
+mojo-fenics	fenics	finite element assembly
+mojo-meshio	meshio	mesh format read/write
+mojo-pygmsh	pygmsh	mesh generation
+mojo-meshpy	meshpy	tetrahedral mesh generation
+mojo-vtk	vtk	unstructured grid filters
+mojo-pyacvd	pyacvd	mesh remeshing
+mojo-libigl	libigl	discrete differential geometry ops
+mojo-potpourri3d	potpourri3d	geodesic distance and vector heat
+mojo-pyembree	pyembree	BVH ray intersection
+mojo-rtree-ray	rtree-ray	ray-scene traversal
+mojo-taichi	taichi	parallel spatial simulation kernels
+mojo-warp-lang	warp-lang	differentiable simulation kernels
+mojo-genesis-world	genesis-world	rigid body and soft body simulation
+mojo-mujoco	mujoco	articulated body dynamics
+mojo-dm-control	dm-control	physics control primitives
+mojo-gymnasium	gymnasium	environment step kernels
+mojo-stable-baselines3	stable-baselines3	RL rollout buffers and GAE
+mojo-sb3-contrib	sb3-contrib	RL algorithm kernels
+mojo-pettingzoo	pettingzoo	multi agent env stepping
+mojo-procgen	procgen	procedural level generation
+mojo-noise-simplex	noise-simplex	simplex noise fields
+mojo-bezier-curves	bezier-curves	spline evaluation
+mojo-scipy-interpolate	scipy-interpolate	spline and RBF interpolation
+mojo-rbf	rbf	radial basis function interpolation
+mojo-pykrige	pykrige	kriging interpolation
+mojo-verde	verde	gridding and spatial interpolation
+mojo-xarray	xarray	labelled ndarray reductions and rolling
+mojo-cf-xarray	cf-xarray	coordinate aware operations
+mojo-metpy	metpy	meteorological calculations
+mojo-windrose	windrose	directional binning
+mojo-pvlib	pvlib	solar position and irradiance models
+mojo-pyephem	pyephem	astronomical ephemeris
+mojo-skyfield	skyfield	ephemeris and satellite propagation
+mojo-sgp4	sgp4	SGP4 orbit propagation
+mojo-poliastro	poliastro	orbital mechanics
+mojo-spiceypy	spiceypy	planetary geometry kernels
+mojo-pyproj-transform	pyproj-transform	coordinate transform pipelines
+mojo-utm	utm	UTM conversion
+mojo-pygeodesy	pygeodesy	geodesic distance and vincenty
+mojo-geographiclib	geographiclib	geodesic solutions
+mojo-pymodes	pyModeS	ADS-B message decoding
+mojo-bitshuffle	bitshuffle	bit level shuffle filter
+mojo-numcodecs	numcodecs	array compression codecs
+mojo-imagecodecs	imagecodecs	image codec collection
+mojo-jpeg2000	jpeg2000	wavelet image codec
+mojo-openjpeg	openjpeg	JPEG2000 encode/decode
+mojo-libwebp	libwebp	webp encode/decode
+mojo-pillow-simd	pillow-simd	SIMD image resampling
+mojo-wand	wand	image magick operations
+mojo-rembg	rembg	alpha matting kernels
+mojo-opencv-contrib-python	opencv-contrib-python	tracking, stitching, optflow
+mojo-kornia	kornia	differentiable vision ops
+mojo-albumentations	albumentations	image augmentation kernels
+mojo-imgaug	imgaug	image augmentation
+mojo-scikit-video	scikit-video	video quality metrics and motion
+mojo-vidgear	vidgear	frame pipeline
+mojo-pyscenedetect	pyscenedetect	scene change detection
+mojo-ffmpeg-python	ffmpeg-python	filtergraph timing math
+mojo-audioread	audioread	audio decode dispatch
+mojo-torchaudio	torchaudio	audio transforms
+mojo-essentia	essentia	music information retrieval descriptors
+mojo-madmom	madmom	onset and beat tracking
+mojo-aubio	aubio	pitch, onset, tempo detection
+mojo-pyworld	pyworld	WORLD vocoder analysis/synthesis
+mojo-pysptk	pysptk	speech signal processing toolkit
+mojo-speech-features	python-speech-features	MFCC and filterbanks
+mojo-spafe	spafe	speech feature extraction
+mojo-pyroomacoustics	pyroomacoustics	room impulse response and beamforming
+mojo-acoustics	acoustics	acoustic signal metrics
+mojo-soxr	soxr	high quality resampling
+mojo-samplerate	samplerate	sample rate conversion
+mojo-pyloudnorm	pyloudnorm	EBU R128 loudness
+mojo-pedalboard	pedalboard	audio effect processing
+mojo-mido	mido	MIDI message parse
+mojo-music21	music21	music theory analysis
+mojo-pretty-midi	pretty-midi	MIDI to piano roll
+mojo-crepe	crepe	pitch tracking
+mojo-torchcrepe	torchcrepe	pitch tracking kernels
+mojo-pywt	pywt	wavelet transforms
+mojo-ssqueezepy	ssqueezepy	synchrosqueezed transforms
+mojo-emd	emd	empirical mode decomposition
+mojo-spectrum	spectrum	spectral estimation methods
+mojo-nitime	nitime	time series spectral analysis
+mojo-mne	mne	EEG/MEG filtering and epoching
+mojo-neurokit2	neurokit2	biosignal processing
+mojo-heartpy	heartpy	heart rate signal analysis
+mojo-biosppy	biosppy	biosignal feature extraction
+mojo-scipy-signal	scipy-signal	filter design, convolution, resampling
+mojo-sosfilt	sosfilt	second order section filtering
+mojo-pyfilterbank	pyfilterbank	filterbank design
+mojo-adaptfilt	adaptfilt	adaptive filtering
+mojo-padasip	padasip	adaptive signal processing
+mojo-pykalman-ng	pykalman-ng	state space filtering
+mojo-simpy	simpy	discrete event simulation
+mojo-salabim	salabim	discrete event simulation
+mojo-mesa	mesa	agent based simulation stepping
+mojo-networkx-temporal	networkx-temporal	temporal graph algorithms
+mojo-epidemics	epidemics	compartmental model integration
+mojo-odeint	odeint	ODE integration
+mojo-diffeqpy	diffeqpy	differential equation solvers
+mojo-assimulo	assimulo	DAE and ODE solvers
+mojo-casadi	casadi	automatic differentiation and NLP
+mojo-autograd	autograd	reverse mode autodiff
+mojo-jaxlib-ops	jaxlib-ops	elementwise and reduction primitives
+mojo-micrograd	micrograd	scalar autodiff engine
+mojo-tinygrad	tinygrad	tensor op lowering
+mojo-ggml-python	ggml-python	quantized tensor kernels
+mojo-llama-cpp-kernels	llama-cpp-kernels	quantized matmul kernels
+mojo-bitsandbytes	bitsandbytes	8-bit and 4-bit quantization
+mojo-gguf	gguf	GGUF quantization format read/write
+mojo-safetensors	safetensors	tensor serialization
+mojo-onnx	onnx	graph shape inference and ops
+mojo-onnxruntime-ops	onnxruntime-ops	operator kernels
+mojo-tflite-runtime	tflite-runtime	quantized inference kernels
+mojo-ncnn	ncnn	mobile inference kernels
+mojo-openvino	openvino	inference operator kernels
+mojo-tvm	tvm	tensor expression scheduling
+mojo-triton-lang	triton-lang	block level GPU kernel compilation
+mojo-cupy	cupy	CUDA array operations
+mojo-pycuda	pycuda	CUDA kernel launch and memory
+mojo-numba-cuda	numba-cuda	CUDA kernel compilation
+mojo-arrayfire	arrayfire	parallel array operations
+mojo-pyopencl	pyopencl	OpenCL kernel dispatch
+mojo-mpi4py	mpi4py	collective communication patterns
+mojo-joblib	joblib	parallel loop dispatch and memmap
+mojo-ray	ray	task scheduling and object store
+mojo-multiprocess	multiprocess	process pool primitives
+mojo-threadpoolctl	threadpoolctl	BLAS thread control
+mojo-psutil-cpu	psutil-cpu	cpu affinity and topology
+mojo-blis	blis	BLAS-like kernels
+mojo-openblas-py	openblas-py	dense linear algebra kernels
+mojo-scipy-linalg	scipy-linalg	LU, QR, SVD, eigen decompositions
+mojo-numpy-linalg	numpy-linalg	matrix factorizations
+mojo-tensorly	tensorly	tensor decompositions
+mojo-tensornetwork	tensornetwork	tensor contraction
+mojo-opt-einsum	opt-einsum	contraction path optimization
+mojo-einops	einops	tensor rearrange and reduce
+mojo-scikit-tensor	scikit-tensor	tucker and CP decomposition
+mojo-hottbox	hottbox	tensor algebra
+mojo-pymanopt	pymanopt	manifold optimization
+mojo-geomstats	geomstats	riemannian geometry computations
+mojo-giotto-tda	giotto-tda	persistent homology
+mojo-ripser	ripser	vietoris rips persistence
+mojo-gudhi	gudhi	topological data analysis
+mojo-persim	persim	persistence diagram metrics
+mojo-kmapper	kmapper	mapper algorithm
+mojo-umato	umato	topology preserving embedding
+mojo-trimap	trimap	triplet based dimensionality reduction
+mojo-pacmap	pacmap	pairwise controlled embedding
+mojo-phate	phate	diffusion based embedding
+mojo-ivis	ivis	siamese embedding
+mojo-prince	prince	correspondence and factor analysis
+mojo-factor-analyzer	factor-analyzer	factor analysis
+mojo-pyldavis	pyLDAvis	topic model distance and scaling
+mojo-bertopic	bertopic	topic clustering kernels
+mojo-top2vec	top2vec	topic vector clustering
+mojo-corextopic	corextopic	information theoretic topic modelling
+mojo-scikit-lego	scikit-lego	estimator building blocks
+mojo-dirty-cat	dirty-cat	fuzzy categorical encoding
+mojo-feature-engine	feature-engine	feature transformers
+mojo-sklearn-pandas	sklearn-pandas	column transformation
+mojo-skrub	skrub	table joining and fuzzy matching
+mojo-recordlinkage	recordlinkage	record deduplication
+mojo-dedupe	dedupe	entity resolution blocking and scoring
+mojo-splink	splink	probabilistic record linkage
+mojo-stringmatching	py-stringmatching	string similarity measures
+mojo-fuzzywuzzy	fuzzywuzzy	fuzzy string ratios
+mojo-polyfuzz	polyfuzz	fuzzy string grouping
+mojo-thefuzz	thefuzz	fuzzy matching
+mojo-cologne-phonetics	cologne-phonetics	phonetic encoding
+mojo-metaphone	metaphone	double metaphone
+mojo-abydos	abydos	string phonetics and distance
+mojo-pyxdameraulevenshtein	pyxDamerauLevenshtein	damerau levenshtein
+mojo-weighted-levenshtein	weighted-levenshtein	weighted edit distance
+mojo-nltk-metrics	nltk-metrics	string metrics
+mojo-sentencepiece	sentencepiece	unigram and BPE subword tokenization
+mojo-subword-nmt	subword-nmt	BPE learning and applying
+mojo-youtokentome	youtokentome	fast BPE
+mojo-blingfire	blingfire	fast tokenization
+mojo-syntok	syntok	sentence segmentation
+mojo-pysbd	pysbd	sentence boundary detection
+mojo-truecase	truecase	truecasing
+mojo-contractions	contractions	text normalization
+mojo-emoji	emoji	emoji detection and demojize
+mojo-wordfreq	wordfreq	frequency lookup and tokenization
+mojo-pyspellchecker	pyspellchecker	edit distance spell correction
+mojo-symspellpy	symspellpy	symmetric delete spell correction
+mojo-hunspell	hunspell	affix and dictionary spell checking
+mojo-language-tool-python	language-tool-python	rule matching
+mojo-textstat	textstat	readability metrics
+mojo-lexicalrichness	lexicalrichness	lexical diversity metrics
+mojo-pyphen	pyphen	hyphenation
+mojo-num2fraction	num2fraction	rational approximation
+mojo-z3-solver	z3-solver	SMT solving: bit-vector and linear arithmetic propagation
+mojo-sat	python-sat	CDCL SAT solving and cardinality encodings
+mojo-pysmt	pysmt	SMT formula manipulation and simplification
+mojo-cvc5	cvc5	SMT theory solvers
+mojo-pyeda	pyeda	boolean expression minimization and BDDs
+mojo-dd	dd	binary decision diagrams
+mojo-sympy-polys	sympy-polys	multivariate polynomial arithmetic and groebner bases
+mojo-flint-py	flint-py	number theory and polynomial arithmetic
+mojo-galois	galois	Galois field arithmetic and linear algebra
+mojo-pyfinite	pyfinite	finite field arithmetic
+mojo-sage-combinat	sage-combinat	combinatorial enumeration
+mojo-more-itertools	more-itertools	combinatoric and windowing iterators
+mojo-itertools-recipes	itertools-recipes	combinatorial generation kernels
+mojo-sympy-ntheory	sympy-ntheory	primality, factorization, modular arithmetic
+mojo-primefac	primefac	integer factorization algorithms
+mojo-labmath	labmath	number theoretic functions
+mojo-pycryptodomex	pycryptodomex	block ciphers, stream ciphers, digests
+mojo-nacl	nacl	curve25519, ed25519, secretbox
+mojo-ecdsa	ecdsa	elliptic curve signatures
+mojo-coincurve	coincurve	secp256k1 signing and verification
+mojo-ecc	py-ecc	pairing friendly curve arithmetic
+mojo-galois-field	galois-field	extension field arithmetic
+mojo-pyzkp	pyzkp	zero knowledge proof primitives
+mojo-merkletools	merkletools	merkle tree construction and proofs
+mojo-pymerkle	pymerkle	merkle proof generation and verification
+mojo-base58	base58	base58 and base58check encoding
+mojo-base65536	base65536	dense binary to text encoding
+mojo-pybase64	pybase64	SIMD base64 encode/decode
+mojo-baseconv	python-baseconv	arbitrary base conversion
+mojo-bech32	bech32	bech32 address encoding
+mojo-eth-hash	eth-hash	keccak256 hashing
+mojo-pysha3	pysha3	keccak and sha3 hashing
+mojo-blake2	blake2	blake2b and blake2s hashing
+mojo-whirlpool	whirlpool	whirlpool digest
+mojo-crc32c	crc32c	hardware accelerated crc32c
+mojo-zlib-ng	zlib-ng	deflate compress/decompress
+mojo-lzo	python-lzo	LZO block compression
+mojo-pyppmd	pyppmd	PPMd context modelling compression
+mojo-py7zr	py7zr	LZMA2 and BCJ filter chain
+mojo-zipfile-deflate64	zipfile-deflate64	deflate64 decompression
+mojo-rarfile	rarfile	RAR decode paths
+mojo-pyzipper	pyzipper	AES-encrypted zip streams
+mojo-bsdiff4	bsdiff4	binary delta encoding
+mojo-detools	detools	binary patch generation
+mojo-xdelta3	xdelta3	delta compression
+mojo-pyrsync	pyrsync	rolling checksum block matching
+mojo-librsync	librsync	signature and delta generation
+mojo-fastcdc	fastcdc	content defined chunking
+mojo-rabin	rabin	rabin fingerprint chunking
+mojo-ssdeep	ssdeep	fuzzy context triggered hashing
+mojo-tlsh	tlsh	locality sensitive hashing
+mojo-nilsimsa	nilsimsa	similarity digest
+mojo-simhash	simhash	simhash near duplicate detection
+mojo-minhash	minhash	minhash sketching
+mojo-countminsketch	countminsketch	count-min sketch frequency estimation
+mojo-tdigest	tdigest	streaming quantile estimation
+mojo-ddsketch	ddsketch	relative error quantile sketch
+mojo-pyprobables	pyprobables	probabilistic data structure collection
+mojo-cuckoofilter	cuckoofilter	cuckoo filter membership
+mojo-quotient-filter	quotient-filter	quotient filter membership
+mojo-bounter	bounter	memory bounded counting
+mojo-streamz	streamz	streaming windowed aggregation
+mojo-river-stats	river-stats	online statistics estimators
+mojo-pyspark-kernels	pyspark-kernels	shuffle, join and aggregation kernels
+mojo-modin	modin	dataframe partition kernels
+mojo-vaex	vaex	out of core dataframe expressions
+mojo-datatable	datatable	columnar munging kernels
+mojo-cudf-kernels	cudf-kernels	columnar groupby and join
+mojo-ibis-framework	ibis-framework	relational expression compilation
+mojo-sqlparse	sqlparse	SQL tokenization and formatting
+mojo-moz-sql-parser	moz-sql-parser	SQL to AST parsing
+mojo-antlr4-python3-runtime	antlr4-python3-runtime	ALL(*) parsing runtime
+mojo-lark	lark	earley and LALR parsing
+mojo-parsimonious	parsimonious	PEG parsing
+mojo-pyparsing-ng	pyparsing-ng	combinator parsing
+mojo-ply	ply	lex and yacc parsing
+mojo-sly	sly	lexer and parser generation
+mojo-tatsu	tatsu	PEG parser generation
+mojo-tree-sitter	tree-sitter	incremental parsing and query matching
+mojo-pygls	pygls	document symbol indexing
+mojo-libcst	libcst	concrete syntax tree parse and codegen
+mojo-asttokens	asttokens	source position mapping
+mojo-astor	astor	AST to source generation
+mojo-minifier	python-minifier	AST transformation and renaming
+mojo-pyflakes	pyflakes	scope and binding analysis
+mojo-bandit-ast	bandit-ast	AST security pattern matching
+mojo-radon	radon	cyclomatic complexity and halstead metrics
+mojo-lizard	lizard	function complexity analysis
+mojo-vulture	vulture	dead code reachability analysis
+mojo-pycodestyle	pycodestyle	tokenizer driven style checking
+mojo-autopep8	autopep8	token level source rewriting
+mojo-difflib-ng	difflib-ng	sequence diff algorithms
+mojo-diff-match-patch	diff-match-patch	diff, match and patch algorithms
+mojo-unidiff	unidiff	unified diff parsing
+mojo-xmldiff	xmldiff	tree diff algorithms
+mojo-deepdiff	deepdiff	deep structure diffing and hashing
+mojo-dictdiffer	dictdiffer	nested structure diffs
+mojo-jsonpatch	jsonpatch	JSON patch generation and apply
+mojo-json-delta	json-delta	JSON diff computation
+mojo-pyrsistent	pyrsistent	persistent immutable data structures
+mojo-immutables	immutables	hash array mapped trie
+mojo-frozendict	frozendict	immutable mapping
+mojo-recordclass	recordclass	compact mutable records
+mojo-attrs-kernels	attrs-kernels	slotted attribute access
+mojo-dataclasses-json	dataclasses-json	structure to JSON mapping
+mojo-cattrs	cattrs	structured to unstructured conversion
+mojo-marshmallow	marshmallow	schema serialization and validation
+mojo-voluptuous	voluptuous	data validation
+mojo-cerberus	cerberus	document validation
+mojo-jsonschema-rs	jsonschema-rs	compiled JSON schema validation
+mojo-fastjsonschema	fastjsonschema	compiled JSON schema validation
+mojo-xmltodict	xmltodict	XML to dict conversion
+mojo-untangle	untangle	XML tree building
+mojo-defusedxml	defusedxml	safe XML parsing
+mojo-xmlschema	xmlschema	XSD validation
+mojo-rdflib	rdflib	RDF graph and SPARQL evaluation
+mojo-owlrl	owlrl	RDF entailment rules
+mojo-sparqlwrapper	sparqlwrapper	SPARQL result parsing
+mojo-pyshacl	pyshacl	SHACL constraint validation
+mojo-networkx-algorithms	networkx-algorithms	flow, matching and coloring algorithms
+mojo-igraph-layout	python-igraph-layout	force directed graph layout
+mojo-graphviz-layout	graphviz-layout	hierarchical layout computation
+mojo-pydot	pydot	DOT parsing and graph building
+mojo-grandalf	grandalf	sugiyama layered layout
+mojo-forceatlas2	forceatlas2	force atlas graph layout
+mojo-fa2	fa2	graph layout kernels
+mojo-pymetis	pymetis	graph partitioning
+mojo-nxmetis	nxmetis	graph partitioning
+mojo-scikit-network	scikit-network	large graph ranking and clustering
+mojo-sknetwork-embedding	sknetwork-embedding	spectral graph embedding
+mojo-pagerank	pagerank	link analysis ranking
+mojo-hits	hits	hub and authority scoring
+mojo-pyvis	pyvis	graph physics simulation
+mojo-netgraph	netgraph	graph layout and edge bundling
+mojo-bezier-bundling	bezier-bundling	edge bundling geometry
+mojo-datashader	datashader	rasterized aggregation of large datasets
+mojo-holoviews-ops	holoviews-ops	declarative aggregation kernels
+mojo-vaex-viz	vaex-viz	binned aggregation for plots
+mojo-mpl-scatter-density	mpl-scatter-density	density rasterization
+mojo-fast-histogram	fast-histogram	fast 1d and 2d histograms
+mojo-boost-histogram	boost-histogram	multidimensional histogram filling
+mojo-hist	hist	histogram aggregation
+mojo-uproot	uproot	ROOT columnar decompression and interpretation
+mojo-awkward	awkward	jagged array manipulation
+mojo-vector	vector	lorentz vector arithmetic
+mojo-particle	particle	particle property lookup
+mojo-pyhf	pyhf	binned likelihood evaluation
+mojo-iminuit	iminuit	function minimization and error estimation
+mojo-zfit	zfit	unbinned likelihood fitting
+mojo-lmfit	lmfit	nonlinear least squares fitting
+mojo-kafe2	kafe2	fit and uncertainty propagation
+mojo-scipy-odr	scipy-odr	orthogonal distance regression
+mojo-symfit	symfit	symbolic fitting
+mojo-numdifftools	numdifftools	numerical differentiation
+mojo-findiff	findiff	finite difference operators
+mojo-pde	py-pde	PDE discretization and time stepping
+mojo-fipy	fipy	finite volume PDE solving
+mojo-devito	devito	stencil computation code generation
+mojo-stencil-ops	stencil-ops	structured grid stencils
+mojo-pystencils	pystencils	stencil kernel generation
+mojo-lbmpy	lbmpy	lattice boltzmann kernels
+mojo-phiflow	phiflow	fluid simulation kernels
+mojo-sph	sph	smoothed particle hydrodynamics
+mojo-pysph	pysph	SPH neighbour search and integration
+mojo-pyfr	pyfr	flux reconstruction kernels
+mojo-dedalus	dedalus	spectral PDE solving
+mojo-shenfun	shenfun	spectral galerkin methods
+mojo-chebpy	chebpy	chebyshev approximation
+mojo-numpy-polynomial	numpy-polynomial	orthogonal polynomial evaluation
+mojo-quadpy	quadpy	numerical quadrature schemes
+mojo-cubature	cubature	adaptive multidimensional integration
+mojo-tanh-sinh	tanh-sinh	double exponential quadrature
+mojo-scipy-integrate	scipy-integrate	quadrature and ODE integration
+mojo-sundials-py	sundials-py	CVODE and IDA integrators
+mojo-odespy	odespy	ODE solver collection
+mojo-pydoe	pyDOE	design of experiments sampling
+mojo-salib	SALib	sensitivity analysis sampling and indices
+mojo-chaospy	chaospy	polynomial chaos expansion
+mojo-uqpy	UQpy	uncertainty quantification sampling
+mojo-smt	smt	surrogate modelling toolbox
+mojo-gpytorch-kernels	gpytorch-kernels	gaussian process kernel evaluation
+mojo-gpy	GPy	gaussian process regression
+mojo-george	george	fast GP likelihood evaluation
+mojo-celerite2	celerite2	scalable GP for time series
+mojo-tinygp	tinygp	gaussian process kernels
+mojo-scikit-learn-extra	scikit-learn-extra	robust clustering and metrics
+mojo-fastcluster	fastcluster	hierarchical clustering linkage
+mojo-scipy-cluster	scipy-cluster	linkage and dendrogram computation
+mojo-kmeans1d	kmeans1d	optimal 1d clustering
+mojo-ckwrap	ckwrap	weighted 1d k-means
+mojo-jenkspy	jenkspy	natural breaks classification
+mojo-mapclassify	mapclassify	choropleth classification schemes
+mojo-esda	esda	spatial autocorrelation statistics
+mojo-libpysal	libpysal	spatial weights construction
+mojo-spreg	spreg	spatial regression
+mojo-spglm	spglm	generalized linear models
+mojo-mgwr	mgwr	geographically weighted regression
+mojo-segregation	segregation	spatial segregation indices
+mojo-tobler	tobler	areal interpolation
+mojo-pointpats	pointpats	point pattern statistics
+mojo-spopt	spopt	spatial optimization
+mojo-routingpy	routingpy	route matrix computation
+mojo-osmnx	osmnx	street network graph construction
+mojo-networkx-shortest	networkx-shortest	dijkstra and a-star routing
+mojo-pyroutelib3	pyroutelib3	road graph routing
+mojo-graphhopper-py	graphhopper-py	contraction hierarchy routing
+mojo-tsp	python-tsp	travelling salesman heuristics
+mojo-tsplib95	tsplib95	TSP instance parsing and distance
+mojo-vrpy	vrpy	vehicle routing column generation
+mojo-ortools-routing	ortools-routing	routing metaheuristics
+mojo-mip	mip	mixed integer programming
+mojo-pyomo	pyomo	algebraic modelling and presolve
+mojo-gekko	gekko	dynamic optimization
+mojo-nlopt	nlopt	nonlinear optimization algorithms
+mojo-pyswarms	pyswarms	particle swarm optimization
+mojo-simanneal	simanneal	simulated annealing
+mojo-mealpy	mealpy	metaheuristic optimizer collection
+mojo-pygad	pygad	genetic algorithm engine
+mojo-gplearn	gplearn	genetic programming symbolic regression
+mojo-pysr	pysr	symbolic regression search
+mojo-sympy-simplify	sympy-simplify	expression simplification search
+mojo-cma	cma	CMA-ES optimization
+mojo-bayesian-optimization	bayesian-optimization	gaussian process bayesian optimization
+mojo-ax-platform	ax-platform	bayesian optimization loop
+mojo-botorch-acq	botorch-acq	acquisition function evaluation
+mojo-smac	smac	sequential model based configuration
+mojo-configspace	ConfigSpace	configuration space sampling
+mojo-hpbandster	hpbandster	hyperband and BOHB
+mojo-ray-tune-schedulers	ray-tune-schedulers	trial scheduling algorithms
+mojo-sklearn-genetic	sklearn-genetic	feature selection search
+mojo-boruta	boruta	feature selection by shadow features
+mojo-mrmr-selection	mrmr-selection	minimum redundancy feature selection
+mojo-scikit-feature	scikit-feature	feature selection algorithms
+mojo-ppscore	ppscore	predictive power score
+mojo-phik	phik	correlation coefficient for mixed types
+mojo-dython	dython	nominal association measures
+mojo-scipy-stats	scipy-stats	distributions, tests and moments
+mojo-distfit	distfit	distribution fitting and selection
+mojo-fitter	fitter	distribution fitting search
+mojo-reliability	reliability	reliability and weibull analysis
+mojo-scikit-posthocs	scikit-posthocs	post hoc statistical tests
+mojo-statsmodels-multitest	statsmodels-multitest	multiple testing correction
+mojo-permute	permute	permutation tests
+mojo-resample	resample	bootstrap and jackknife
+mojo-arch	arch	GARCH and volatility models
+mojo-pmdarima	pmdarima	auto ARIMA search
+mojo-neuralforecast	neuralforecast	forecasting model kernels
+mojo-darts	darts	forecasting transforms and metrics
+mojo-gluonts	gluonts	probabilistic forecasting kernels
+mojo-merlion	merlion	time series anomaly detection
+mojo-adtk	adtk	time series anomaly detectors
+mojo-luminol	luminol	anomaly detection and correlation
+mojo-banpei	banpei	singular spectrum transform
+mojo-pyculiarity	pyculiarity	seasonal hybrid ESD detection
+mojo-seasonal	seasonal	seasonal decomposition
+mojo-statsmodels-stl	statsmodels-stl	STL decomposition
+mojo-pyhht	pyhht	hilbert huang transform
+mojo-tftb	tftb	time frequency analysis
+mojo-scaleogram	scaleogram	continuous wavelet scalogram
+mojo-pyrqa	pyrqa	recurrence quantification analysis
+mojo-teaspoon	teaspoon	topological signal processing
+mojo-sdt-python	sdt-python	single molecule tracking
+mojo-trackpy	trackpy	particle tracking and linking
+mojo-laptrack	laptrack	linear assignment particle tracking
+mojo-scipy-optimize-linear	scipy-optimize-linear	linear sum assignment
+mojo-lap	lap	jonker volgenant assignment
+mojo-lapjv	lapjv	linear assignment problem
+mojo-munkres	munkres	hungarian algorithm
+mojo-pulp-assignment	pulp-assignment	assignment problem solving
+mojo-filterpy-imm	filterpy-imm	interacting multiple model filters
+mojo-motmetrics	motmetrics	multi object tracking metrics
+mojo-norfair	norfair	tracking distance and kalman update
+mojo-bytetrack	bytetrack	detection association tracking
+mojo-deep-sort-realtime	deep-sort-realtime	appearance based track association
+mojo-opencv-tracking	opencv-tracking	correlation filter tracking
+mojo-vidstab	vidstab	video stabilization transforms
+mojo-pyimreg	pyimreg	image registration
+mojo-simpleitk	SimpleITK	image registration and resampling
+mojo-itk	itk	image filtering pipelines
+mojo-nibabel	nibabel	neuroimaging volume IO
+mojo-nilearn	nilearn	brain image masking and connectivity
+mojo-dipy	dipy	diffusion MRI reconstruction and tracking
+mojo-pydicom	pydicom	DICOM parse and pixel decode
+mojo-highdicom	highdicom	DICOM segmentation encoding
+mojo-medpy	medpy	medical image metrics and filters
+mojo-monai-transforms	monai-transforms	medical image transform kernels
+mojo-radiomics	radiomics	radiomic feature extraction
+mojo-scikit-image-registration	scikit-image-registration	phase correlation registration
+mojo-imreg-dft	imreg-dft	fourier based registration
+mojo-pystackreg	pystackreg	image stack alignment
+mojo-napari-ops	napari-ops	multidimensional image slicing
+mojo-aicsimageio	aicsimageio	microscopy image loading
+mojo-cellpose-kernels	cellpose-kernels	cell segmentation flows
+mojo-stardist	stardist	star convex polygon segmentation
+mojo-btrack	btrack	bayesian cell tracking
+mojo-scikit-image-graph	scikit-image-graph	region adjacency graph merging
+mojo-felzenszwalb	felzenszwalb	graph based segmentation
+mojo-slic	slic	superpixel segmentation
+mojo-maskslic	maskslic	supervoxel segmentation
+mojo-pymaxflow	pymaxflow	graph cut energy minimization
+mojo-gco-wrapper	gco-wrapper	graph cut optimization
+mojo-opengm	opengm	discrete graphical model inference
+mojo-pgmpy	pgmpy	bayesian network inference
+mojo-pomegranate-bn	pomegranate-bn	bayesian network structure learning
+mojo-libpgm	libpgm	graphical model sampling
+mojo-pyagrum	pyagrum	probabilistic graphical models
+mojo-bnlearn	bnlearn	structure learning algorithms
+mojo-causal-learn	causal-learn	causal discovery algorithms
+mojo-dowhy	dowhy	causal effect estimation
+mojo-econml	econml	heterogeneous treatment effect estimation
+mojo-causalml	causalml	uplift modelling
+mojo-pysal-spint	pysal-spint	spatial interaction models
+mojo-linearmodels-panel	linearmodels-panel	panel data estimators
+mojo-pyfixest	pyfixest	fixed effects regression
+mojo-fixedeffectmodel	fixedeffectmodel	high dimensional fixed effects
+mojo-duckreg	duckreg	regression by compression
+mojo-sparse-dot-topn	sparse-dot-topn	sparse matrix top-n multiplication
+mojo-sparse-dot	sparse-dot	sparse matrix products
+mojo-scipy-sparse-csgraph	scipy-sparse-csgraph	sparse graph shortest paths
+mojo-scikit-sparse-cholmod	scikit-sparse-cholmod	sparse cholesky factorization
+mojo-pypropack	pypropack	sparse SVD
+mojo-irlb	irlb	implicitly restarted lanczos
+mojo-scipy-eigsh	scipy-eigsh	sparse eigenvalue solving
+mojo-primme	primme	eigenvalue and SVD solving
+mojo-slepc4py	slepc4py	sparse eigenproblem solving
+mojo-randomized-svd	randomized-svd	randomized matrix decomposition
+mojo-fbpca	fbpca	fast randomized PCA
+mojo-sklearn-nmf	sklearn-nmf	nonnegative matrix factorization
+mojo-nimfa	nimfa	matrix factorization methods
+mojo-tensorly-decomposition	tensorly-decomposition	tensor factorization algorithms
+mojo-pyten	pyten	tensor completion
+mojo-fancyimpute	fancyimpute	matrix completion imputation
+mojo-missingno	missingno	missingness pattern computation
+mojo-miceforest	miceforest	multiple imputation by chained equations
+mojo-autoimpute	autoimpute	imputation strategies
+mojo-knnimpute	knnimpute	nearest neighbour imputation
+mojo-datawig	datawig	imputation model kernels
+mojo-pyampute	pyampute	missingness generation
+mojo-scikit-learn-preprocessing	scikit-learn-preprocessing	scaling, binning and encoding
+mojo-kbinsdiscretizer	kbinsdiscretizer	optimal binning
+mojo-optbinning	optbinning	optimal binning and scorecards
+mojo-scorecardpy	scorecardpy	credit scorecard binning and WOE
+mojo-xverse	xverse	weight of evidence transformation
+mojo-woe	woe	information value computation
+mojo-monotonic-binning	monotonic-binning	monotonic bin construction
+mojo-earth	py-earth	multivariate adaptive regression splines
+mojo-pygam	pygam	generalized additive models
+mojo-interpret	interpret	explainable boosting machines
+mojo-rulefit	rulefit	rule ensemble fitting
+mojo-skope-rules	skope-rules	rule extraction
+mojo-imodels	imodels	interpretable model fitting
+mojo-alibi	alibi	counterfactual and anchor explanations
+mojo-dice-ml	dice-ml	counterfactual generation
+mojo-eli5	eli5	permutation importance
+mojo-pdpbox	pdpbox	partial dependence computation
+mojo-pycebox	pycebox	individual conditional expectation
+mojo-shapash	shapash	explanation aggregation
+mojo-treeinterpreter	treeinterpreter	tree decision path attribution
+mojo-dtreeviz	dtreeviz	decision tree traversal and stats
+mojo-sklearn-tree-export	sklearn-tree-export	tree structure serialization
+mojo-m2cgen	m2cgen	model to code generation
+mojo-hummingbird-ml	hummingbird-ml	tree model tensor compilation
+mojo-treelite	treelite	tree model compilation
+mojo-leaves	leaves	tree ensemble prediction
+mojo-onnxmltools	onnxmltools	model graph conversion
+mojo-skl2onnx	skl2onnx	estimator graph conversion
+mojo-tl2cgen	tl2cgen	tree model code generation
+mojo-catboost	catboost	ordered boosting and target statistics
+mojo-ngboost	ngboost	natural gradient boosting
+mojo-gbdt	gbdt	gradient boosted decision trees
+mojo-random-forest	random-forest	bagged decision tree ensembles
+mojo-extra-trees	extra-trees	extremely randomized trees
+mojo-rotation-forest	rotation-forest	rotation forest ensembles
+mojo-mondrian-forest	mondrian-forest	online random forests
+mojo-isolation-forest	isolation-forest	isolation based anomaly scoring
+mojo-extended-isolation-forest	extended-isolation-forest	hyperplane isolation forests
+mojo-loda	loda	lightweight online anomaly detection
+mojo-copod	copod	copula based outlier detection
+mojo-ecod	ecod	empirical cdf outlier detection
+mojo-suod	suod	accelerated outlier ensembles
+mojo-combo	combo	model combination and ensembling
+mojo-deslib	deslib	dynamic ensemble selection
+mojo-scikit-ensemble	scikit-ensemble	ensemble aggregation kernels
+mojo-mlens	mlens	ensemble stacking
+mojo-vecstack	vecstack	stacking transformation
+mojo-sklearn-crfsuite	sklearn-crfsuite	conditional random field inference
+mojo-crfsuite	python-crfsuite	CRF training and tagging
+mojo-pystruct	pystruct	structured prediction inference
+mojo-seqlearn	seqlearn	sequence tagging models
+mojo-hmm-viterbi	hmm-viterbi	viterbi decoding
+mojo-pyctcdecode	pyctcdecode	CTC beam search decoding
+mojo-ctcdecode	ctcdecode	CTC prefix beam search
+mojo-kenlm	kenlm	ngram language model scoring
+mojo-arpa	arpa	ngram model parsing
+mojo-nltk-lm	nltk-lm	ngram language modelling
+mojo-srilm-py	srilm-py	language model interpolation
+mojo-pynini	pynini	weighted finite state transducers
+mojo-openfst-python	openfst-python	FST composition and shortest path
+mojo-hfst	hfst	finite state morphology
+mojo-pyfoma	pyfoma	finite state transducer construction
+mojo-automata-lib	automata-lib	automaton construction and minimization
+mojo-greenery	greenery	regex to DFA conversion
+mojo-interegular	interegular	regex intersection analysis
+mojo-re2	re2	linear time regex matching
+mojo-hyperscan	hyperscan	SIMD multiple regex matching
+mojo-pcre2	pcre2	regex matching
+mojo-regex-automata	regex-automata	DFA regex execution
+mojo-flashtext	flashtext	keyword extraction and replacement
+mojo-ahocorapy	ahocorapy	aho corasick keyword search
+mojo-acora	acora	multi keyword search
+mojo-esmre	esmre	multi pattern matching
+mojo-tries	py-tries	trie based prefix search
+mojo-datrie	datrie	double array trie
+mojo-hat-trie	hat-trie	hat trie lookup
+mojo-critbit	critbit	crit-bit tree
+mojo-succinct	succinct	succinct data structures
+mojo-sdsl-lite-py	sdsl-lite-py	compressed suffix arrays
+mojo-pydivsufsort	pydivsufsort	suffix array construction
+mojo-suffix-trees	suffix-trees	suffix tree construction
+mojo-pysuffixarray	pysuffixarray	suffix array and LCP
+mojo-bwt	bwt	burrows wheeler transform
+mojo-fm-index	fm-index	FM index search
+mojo-pyfmindex	pyfmindex	compressed full text index
+mojo-roaringbitmap	roaringbitmap	compressed bitmap operations
+mojo-ewah	ewah	word aligned hybrid bitmaps
+mojo-pybitset	pybitset	bitset operations
+mojo-bitmagic	bitmagic	compressed bit vectors
+mojo-bitvector	bitvector	bit vector arithmetic
+mojo-gmpy2-bits	gmpy2-bits	bit manipulation primitives
+mojo-bit-tricks	bit-tricks	branchless bit manipulation
+mojo-popcount	popcount	population count kernels
+mojo-varint	varint	variable length integer encoding
+mojo-simdcomp	simdcomp	SIMD integer compression
+mojo-pyfastpfor	pyfastpfor	integer list compression
+mojo-streamvbyte	streamvbyte	byte oriented integer compression
+mojo-delta-encoding	delta-encoding	delta and zigzag encoding
+mojo-frame-of-reference	frame-of-reference	frame of reference integer packing
+mojo-bitpacking	bitpacking	bit packed integer arrays
+mojo-dictionary-encoding	dictionary-encoding	dictionary compression kernels
+mojo-run-length	run-length	run length encoding
+mojo-sortednp	sortednp	sorted numpy array set operations
+mojo-numpy-groupies	numpy-groupies	grouped aggregation
+mojo-npi	npi	numpy indexed grouping
+mojo-pandas-groupby	pandas-groupby	hash and sort based grouping
+mojo-radix-sort	radix-sort	LSD and MSD radix sorting
+mojo-timsort	timsort	adaptive merge sorting
+mojo-pdqsort	pdqsort	pattern defeating quicksort
+mojo-sorting-networks	sorting-networks	fixed size sorting networks
+mojo-argsort	argsort	index sorting kernels
+mojo-topk	topk	partial selection algorithms
+mojo-quickselect	quickselect	selection algorithm
+mojo-introselect	introselect	introspective selection
+mojo-heapq-ng	heapq-ng	d-ary heap operations
+mojo-fibonacci-heap	fibonacci-heap	fibonacci heap priority queue
+mojo-pairing-heap	pairing-heap	pairing heap priority queue
+mojo-skiplist	skiplist	skip list ordered container
+mojo-btrees	btrees	persistent B-tree structures
+mojo-lsm-db	lsm-db	log structured merge tree
+mojo-plyvel	plyvel	LSM key value access
+mojo-rocksdb-py	rocksdb-py	block based table access
+mojo-lmdb	lmdb	memory mapped B+tree store
+mojo-bsddb3	bsddb3	hash and btree access methods
+mojo-unqlite	unqlite	embedded key value store
+mojo-sqlitedict	sqlitedict	sqlite backed mapping
+mojo-apsw	apsw	sqlite VFS and cursor operations
+mojo-sqlite-vec	sqlite-vec	vector search in sqlite
+mojo-sqlite-utils	sqlite-utils	table transformation kernels
+mojo-pypika	pypika	SQL query construction
+mojo-records	records	query result transformation
+mojo-csvkit	csvkit	CSV parse and transform
+mojo-csv	python-csv	CSV dialect parsing
+mojo-clevercsv	clevercsv	CSV dialect detection
+mojo-pyarrow-csv	pyarrow-csv	vectorized CSV parsing
+mojo-fastavro	fastavro	avro encode/decode
+mojo-avro-python3	avro-python3	avro schema resolution
+mojo-orc-py	orc-py	ORC stripe decoding
+mojo-feather-format	feather-format	feather read/write
+mojo-pickle5	pickle5	pickle protocol encoding
+mojo-dill	dill	object graph serialization
+mojo-cloudpickle	cloudpickle	closure serialization
+mojo-srsly	srsly	fast msgpack and json serialization
+mojo-capnproto	capnproto	capnproto message encode/decode
+mojo-flatbuffers	flatbuffers	flatbuffer construction and access
+mojo-thrift	thrift	thrift binary protocol
+mojo-bson	bson	BSON encode/decode
+mojo-ubjson	ubjson	universal binary json

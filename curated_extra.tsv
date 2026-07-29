@@ -1,0 +1,515 @@
+z3-solver	SMT solving: bit-vector and linear arithmetic propagation
+python-sat	CDCL SAT solving and cardinality encodings
+pysmt	SMT formula manipulation and simplification
+cvc5	SMT theory solvers
+pyeda	boolean expression minimization and BDDs
+dd	binary decision diagrams
+sympy-polys	multivariate polynomial arithmetic and groebner bases
+flint-py	number theory and polynomial arithmetic
+galois	Galois field arithmetic and linear algebra
+pyfinite	finite field arithmetic
+sage-combinat	combinatorial enumeration
+more-itertools	combinatoric and windowing iterators
+itertools-recipes	combinatorial generation kernels
+sympy-ntheory	primality, factorization, modular arithmetic
+primefac	integer factorization algorithms
+labmath	number theoretic functions
+pycryptodomex	block ciphers, stream ciphers, digests
+nacl	curve25519, ed25519, secretbox
+ecdsa	elliptic curve signatures
+coincurve	secp256k1 signing and verification
+py-ecc	pairing friendly curve arithmetic
+galois-field	extension field arithmetic
+pyzkp	zero knowledge proof primitives
+merkletools	merkle tree construction and proofs
+pymerkle	merkle proof generation and verification
+base58	base58 and base58check encoding
+base65536	dense binary to text encoding
+pybase64	SIMD base64 encode/decode
+python-baseconv	arbitrary base conversion
+bech32	bech32 address encoding
+eth-hash	keccak256 hashing
+pysha3	keccak and sha3 hashing
+blake2	blake2b and blake2s hashing
+whirlpool	whirlpool digest
+crc32c	hardware accelerated crc32c
+zlib-ng	deflate compress/decompress
+python-lzo	LZO block compression
+pyppmd	PPMd context modelling compression
+py7zr	LZMA2 and BCJ filter chain
+zipfile-deflate64	deflate64 decompression
+rarfile	RAR decode paths
+pyzipper	AES-encrypted zip streams
+bsdiff4	binary delta encoding
+detools	binary patch generation
+xdelta3	delta compression
+pyrsync	rolling checksum block matching
+librsync	signature and delta generation
+fastcdc	content defined chunking
+rabin	rabin fingerprint chunking
+ssdeep	fuzzy context triggered hashing
+tlsh	locality sensitive hashing
+nilsimsa	similarity digest
+simhash	simhash near duplicate detection
+minhash	minhash sketching
+countminsketch	count-min sketch frequency estimation
+tdigest	streaming quantile estimation
+ddsketch	relative error quantile sketch
+pyprobables	probabilistic data structure collection
+cuckoofilter	cuckoo filter membership
+quotient-filter	quotient filter membership
+bounter	memory bounded counting
+streamz	streaming windowed aggregation
+river-stats	online statistics estimators
+pyspark-kernels	shuffle, join and aggregation kernels
+modin	dataframe partition kernels
+vaex	out of core dataframe expressions
+datatable	columnar munging kernels
+cudf-kernels	columnar groupby and join
+ibis-framework	relational expression compilation
+sqlparse	SQL tokenization and formatting
+moz-sql-parser	SQL to AST parsing
+antlr4-python3-runtime	ALL(*) parsing runtime
+lark	earley and LALR parsing
+parsimonious	PEG parsing
+pyparsing-ng	combinator parsing
+ply	lex and yacc parsing
+sly	lexer and parser generation
+tatsu	PEG parser generation
+tree-sitter	incremental parsing and query matching
+pygls	document symbol indexing
+libcst	concrete syntax tree parse and codegen
+asttokens	source position mapping
+astor	AST to source generation
+python-minifier	AST transformation and renaming
+pyflakes	scope and binding analysis
+bandit-ast	AST security pattern matching
+radon	cyclomatic complexity and halstead metrics
+lizard	function complexity analysis
+vulture	dead code reachability analysis
+pycodestyle	tokenizer driven style checking
+autopep8	token level source rewriting
+difflib-ng	sequence diff algorithms
+diff-match-patch	diff, match and patch algorithms
+unidiff	unified diff parsing
+xmldiff	tree diff algorithms
+deepdiff	deep structure diffing and hashing
+dictdiffer	nested structure diffs
+jsonpatch	JSON patch generation and apply
+json-delta	JSON diff computation
+pyrsistent	persistent immutable data structures
+immutables	hash array mapped trie
+frozendict	immutable mapping
+recordclass	compact mutable records
+attrs-kernels	slotted attribute access
+dataclasses-json	structure to JSON mapping
+cattrs	structured to unstructured conversion
+marshmallow	schema serialization and validation
+voluptuous	data validation
+cerberus	document validation
+jsonschema-rs	compiled JSON schema validation
+fastjsonschema	compiled JSON schema validation
+xmltodict	XML to dict conversion
+untangle	XML tree building
+defusedxml	safe XML parsing
+xmlschema	XSD validation
+rdflib	RDF graph and SPARQL evaluation
+owlrl	RDF entailment rules
+sparqlwrapper	SPARQL result parsing
+pyshacl	SHACL constraint validation
+networkx-algorithms	flow, matching and coloring algorithms
+python-igraph-layout	force directed graph layout
+graphviz-layout	hierarchical layout computation
+pydot	DOT parsing and graph building
+grandalf	sugiyama layered layout
+forceatlas2	force atlas graph layout
+fa2	graph layout kernels
+pymetis	graph partitioning
+nxmetis	graph partitioning
+scikit-network	large graph ranking and clustering
+sknetwork-embedding	spectral graph embedding
+pagerank	link analysis ranking
+hits	hub and authority scoring
+pyvis	graph physics simulation
+netgraph	graph layout and edge bundling
+bezier-bundling	edge bundling geometry
+datashader	rasterized aggregation of large datasets
+holoviews-ops	declarative aggregation kernels
+vaex-viz	binned aggregation for plots
+mpl-scatter-density	density rasterization
+fast-histogram	fast 1d and 2d histograms
+boost-histogram	multidimensional histogram filling
+hist	histogram aggregation
+uproot	ROOT columnar decompression and interpretation
+awkward	jagged array manipulation
+vector	lorentz vector arithmetic
+particle	particle property lookup
+pyhf	binned likelihood evaluation
+iminuit	function minimization and error estimation
+zfit	unbinned likelihood fitting
+lmfit	nonlinear least squares fitting
+kafe2	fit and uncertainty propagation
+scipy-odr	orthogonal distance regression
+symfit	symbolic fitting
+numdifftools	numerical differentiation
+findiff	finite difference operators
+py-pde	PDE discretization and time stepping
+fipy	finite volume PDE solving
+devito	stencil computation code generation
+stencil-ops	structured grid stencils
+pystencils	stencil kernel generation
+lbmpy	lattice boltzmann kernels
+phiflow	fluid simulation kernels
+sph	smoothed particle hydrodynamics
+pysph	SPH neighbour search and integration
+pyfr	flux reconstruction kernels
+dedalus	spectral PDE solving
+shenfun	spectral galerkin methods
+chebpy	chebyshev approximation
+numpy-polynomial	orthogonal polynomial evaluation
+quadpy	numerical quadrature schemes
+cubature	adaptive multidimensional integration
+tanh-sinh	double exponential quadrature
+scipy-integrate	quadrature and ODE integration
+sundials-py	CVODE and IDA integrators
+odespy	ODE solver collection
+pyDOE	design of experiments sampling
+SALib	sensitivity analysis sampling and indices
+chaospy	polynomial chaos expansion
+UQpy	uncertainty quantification sampling
+smt	surrogate modelling toolbox
+gpytorch-kernels	gaussian process kernel evaluation
+GPy	gaussian process regression
+george	fast GP likelihood evaluation
+celerite2	scalable GP for time series
+tinygp	gaussian process kernels
+scikit-learn-extra	robust clustering and metrics
+fastcluster	hierarchical clustering linkage
+scipy-cluster	linkage and dendrogram computation
+kmeans1d	optimal 1d clustering
+ckwrap	weighted 1d k-means
+jenkspy	natural breaks classification
+mapclassify	choropleth classification schemes
+esda	spatial autocorrelation statistics
+libpysal	spatial weights construction
+spreg	spatial regression
+spglm	generalized linear models
+mgwr	geographically weighted regression
+segregation	spatial segregation indices
+tobler	areal interpolation
+pointpats	point pattern statistics
+spopt	spatial optimization
+routingpy	route matrix computation
+osmnx	street network graph construction
+networkx-shortest	dijkstra and a-star routing
+pyroutelib3	road graph routing
+graphhopper-py	contraction hierarchy routing
+python-tsp	travelling salesman heuristics
+tsplib95	TSP instance parsing and distance
+vrpy	vehicle routing column generation
+ortools-routing	routing metaheuristics
+mip	mixed integer programming
+pyomo	algebraic modelling and presolve
+gekko	dynamic optimization
+nlopt	nonlinear optimization algorithms
+pyswarms	particle swarm optimization
+simanneal	simulated annealing
+mealpy	metaheuristic optimizer collection
+pygad	genetic algorithm engine
+gplearn	genetic programming symbolic regression
+pysr	symbolic regression search
+sympy-simplify	expression simplification search
+cma	CMA-ES optimization
+bayesian-optimization	gaussian process bayesian optimization
+ax-platform	bayesian optimization loop
+botorch-acq	acquisition function evaluation
+smac	sequential model based configuration
+ConfigSpace	configuration space sampling
+hpbandster	hyperband and BOHB
+ray-tune-schedulers	trial scheduling algorithms
+sklearn-genetic	feature selection search
+boruta	feature selection by shadow features
+mrmr-selection	minimum redundancy feature selection
+scikit-feature	feature selection algorithms
+ppscore	predictive power score
+phik	correlation coefficient for mixed types
+dython	nominal association measures
+scipy-stats	distributions, tests and moments
+distfit	distribution fitting and selection
+fitter	distribution fitting search
+reliability	reliability and weibull analysis
+scikit-posthocs	post hoc statistical tests
+statsmodels-multitest	multiple testing correction
+permute	permutation tests
+resample	bootstrap and jackknife
+arch	GARCH and volatility models
+pmdarima	auto ARIMA search
+neuralforecast	forecasting model kernels
+darts	forecasting transforms and metrics
+gluonts	probabilistic forecasting kernels
+merlion	time series anomaly detection
+adtk	time series anomaly detectors
+luminol	anomaly detection and correlation
+banpei	singular spectrum transform
+pyculiarity	seasonal hybrid ESD detection
+seasonal	seasonal decomposition
+statsmodels-stl	STL decomposition
+pyhht	hilbert huang transform
+tftb	time frequency analysis
+scaleogram	continuous wavelet scalogram
+pyrqa	recurrence quantification analysis
+teaspoon	topological signal processing
+sdt-python	single molecule tracking
+trackpy	particle tracking and linking
+laptrack	linear assignment particle tracking
+scipy-optimize-linear	linear sum assignment
+lap	jonker volgenant assignment
+lapjv	linear assignment problem
+munkres	hungarian algorithm
+pulp-assignment	assignment problem solving
+filterpy-imm	interacting multiple model filters
+motmetrics	multi object tracking metrics
+norfair	tracking distance and kalman update
+bytetrack	detection association tracking
+deep-sort-realtime	appearance based track association
+opencv-tracking	correlation filter tracking
+vidstab	video stabilization transforms
+pyimreg	image registration
+SimpleITK	image registration and resampling
+itk	image filtering pipelines
+nibabel	neuroimaging volume IO
+nilearn	brain image masking and connectivity
+dipy	diffusion MRI reconstruction and tracking
+pydicom	DICOM parse and pixel decode
+highdicom	DICOM segmentation encoding
+medpy	medical image metrics and filters
+monai-transforms	medical image transform kernels
+radiomics	radiomic feature extraction
+scikit-image-registration	phase correlation registration
+imreg-dft	fourier based registration
+pystackreg	image stack alignment
+napari-ops	multidimensional image slicing
+aicsimageio	microscopy image loading
+cellpose-kernels	cell segmentation flows
+stardist	star convex polygon segmentation
+btrack	bayesian cell tracking
+scikit-image-graph	region adjacency graph merging
+felzenszwalb	graph based segmentation
+slic	superpixel segmentation
+maskslic	supervoxel segmentation
+pymaxflow	graph cut energy minimization
+gco-wrapper	graph cut optimization
+opengm	discrete graphical model inference
+pgmpy	bayesian network inference
+pomegranate-bn	bayesian network structure learning
+libpgm	graphical model sampling
+pyagrum	probabilistic graphical models
+bnlearn	structure learning algorithms
+causal-learn	causal discovery algorithms
+dowhy	causal effect estimation
+econml	heterogeneous treatment effect estimation
+causalml	uplift modelling
+pysal-spint	spatial interaction models
+linearmodels-panel	panel data estimators
+pyfixest	fixed effects regression
+fixedeffectmodel	high dimensional fixed effects
+duckreg	regression by compression
+sparse-dot-topn	sparse matrix top-n multiplication
+sparse-dot	sparse matrix products
+scipy-sparse-csgraph	sparse graph shortest paths
+scikit-sparse-cholmod	sparse cholesky factorization
+pypropack	sparse SVD
+irlb	implicitly restarted lanczos
+scipy-eigsh	sparse eigenvalue solving
+primme	eigenvalue and SVD solving
+slepc4py	sparse eigenproblem solving
+randomized-svd	randomized matrix decomposition
+fbpca	fast randomized PCA
+sklearn-nmf	nonnegative matrix factorization
+nimfa	matrix factorization methods
+tensorly-decomposition	tensor factorization algorithms
+pyten	tensor completion
+fancyimpute	matrix completion imputation
+missingno	missingness pattern computation
+miceforest	multiple imputation by chained equations
+autoimpute	imputation strategies
+knnimpute	nearest neighbour imputation
+datawig	imputation model kernels
+pyampute	missingness generation
+scikit-learn-preprocessing	scaling, binning and encoding
+kbinsdiscretizer	optimal binning
+optbinning	optimal binning and scorecards
+scorecardpy	credit scorecard binning and WOE
+xverse	weight of evidence transformation
+woe	information value computation
+monotonic-binning	monotonic bin construction
+py-earth	multivariate adaptive regression splines
+pygam	generalized additive models
+interpret	explainable boosting machines
+rulefit	rule ensemble fitting
+skope-rules	rule extraction
+imodels	interpretable model fitting
+alibi	counterfactual and anchor explanations
+dice-ml	counterfactual generation
+eli5	permutation importance
+pdpbox	partial dependence computation
+pycebox	individual conditional expectation
+shapash	explanation aggregation
+treeinterpreter	tree decision path attribution
+dtreeviz	decision tree traversal and stats
+sklearn-tree-export	tree structure serialization
+m2cgen	model to code generation
+hummingbird-ml	tree model tensor compilation
+treelite	tree model compilation
+leaves	tree ensemble prediction
+onnxmltools	model graph conversion
+skl2onnx	estimator graph conversion
+tl2cgen	tree model code generation
+catboost	ordered boosting and target statistics
+ngboost	natural gradient boosting
+gbdt	gradient boosted decision trees
+random-forest	bagged decision tree ensembles
+extra-trees	extremely randomized trees
+rotation-forest	rotation forest ensembles
+mondrian-forest	online random forests
+isolation-forest	isolation based anomaly scoring
+extended-isolation-forest	hyperplane isolation forests
+loda	lightweight online anomaly detection
+copod	copula based outlier detection
+ecod	empirical cdf outlier detection
+suod	accelerated outlier ensembles
+combo	model combination and ensembling
+deslib	dynamic ensemble selection
+scikit-ensemble	ensemble aggregation kernels
+mlens	ensemble stacking
+vecstack	stacking transformation
+sklearn-crfsuite	conditional random field inference
+python-crfsuite	CRF training and tagging
+pystruct	structured prediction inference
+seqlearn	sequence tagging models
+hmm-viterbi	viterbi decoding
+pyctcdecode	CTC beam search decoding
+ctcdecode	CTC prefix beam search
+kenlm	ngram language model scoring
+arpa	ngram model parsing
+nltk-lm	ngram language modelling
+srilm-py	language model interpolation
+pynini	weighted finite state transducers
+openfst-python	FST composition and shortest path
+hfst	finite state morphology
+pyfoma	finite state transducer construction
+automata-lib	automaton construction and minimization
+greenery	regex to DFA conversion
+interegular	regex intersection analysis
+re2	linear time regex matching
+hyperscan	SIMD multiple regex matching
+pcre2	regex matching
+regex-automata	DFA regex execution
+flashtext	keyword extraction and replacement
+ahocorapy	aho corasick keyword search
+acora	multi keyword search
+esmre	multi pattern matching
+py-tries	trie based prefix search
+datrie	double array trie
+hat-trie	hat trie lookup
+critbit	crit-bit tree
+succinct	succinct data structures
+sdsl-lite-py	compressed suffix arrays
+pydivsufsort	suffix array construction
+suffix-trees	suffix tree construction
+pysuffixarray	suffix array and LCP
+bwt	burrows wheeler transform
+fm-index	FM index search
+pyfmindex	compressed full text index
+roaringbitmap	compressed bitmap operations
+ewah	word aligned hybrid bitmaps
+pybitset	bitset operations
+bitmagic	compressed bit vectors
+bitvector	bit vector arithmetic
+gmpy2-bits	bit manipulation primitives
+bit-tricks	branchless bit manipulation
+popcount	population count kernels
+varint	variable length integer encoding
+simdcomp	SIMD integer compression
+pyfastpfor	integer list compression
+streamvbyte	byte oriented integer compression
+delta-encoding	delta and zigzag encoding
+frame-of-reference	frame of reference integer packing
+bitpacking	bit packed integer arrays
+dictionary-encoding	dictionary compression kernels
+run-length	run length encoding
+sortednp	sorted numpy array set operations
+numpy-groupies	grouped aggregation
+npi	numpy indexed grouping
+pandas-groupby	hash and sort based grouping
+radix-sort	LSD and MSD radix sorting
+timsort	adaptive merge sorting
+pdqsort	pattern defeating quicksort
+sorting-networks	fixed size sorting networks
+argsort	index sorting kernels
+topk	partial selection algorithms
+quickselect	selection algorithm
+introselect	introspective selection
+heapq-ng	d-ary heap operations
+fibonacci-heap	fibonacci heap priority queue
+pairing-heap	pairing heap priority queue
+skiplist	skip list ordered container
+btrees	persistent B-tree structures
+lsm-db	log structured merge tree
+plyvel	LSM key value access
+rocksdb-py	block based table access
+lmdb	memory mapped B+tree store
+bsddb3	hash and btree access methods
+unqlite	embedded key value store
+sqlitedict	sqlite backed mapping
+apsw	sqlite VFS and cursor operations
+sqlite-vec	vector search in sqlite
+sqlite-utils	table transformation kernels
+pypika	SQL query construction
+records	query result transformation
+csvkit	CSV parse and transform
+python-csv	CSV dialect parsing
+clevercsv	CSV dialect detection
+pyarrow-csv	vectorized CSV parsing
+fastavro	avro encode/decode
+avro-python3	avro schema resolution
+orc-py	ORC stripe decoding
+feather-format	feather read/write
+pickle5	pickle protocol encoding
+dill	object graph serialization
+cloudpickle	closure serialization
+srsly	fast msgpack and json serialization
+capnproto	capnproto message encode/decode
+flatbuffers	flatbuffer construction and access
+thrift	thrift binary protocol
+bson	BSON encode/decode
+ubjson	universal binary json
+smile-py	binary json encoding
+transit-python2	semantic data encoding
+ion-python	amazon ion encode/decode
+hdf5plugin	HDF5 compression filters
+tables	pytables indexed queries
+kerchunk	chunk reference indexing
+xarray-einstats	statistical array operations
+flox	grouped reductions over xarray
+numbagg	numba accelerated aggregations
+xhistogram	labelled histogramming
+xrft	fourier transforms on labelled arrays
+climlab	climate model kernels
+xclim	climate indicator computation
+metpy-calc	thermodynamic calculations
+windpowerlib	wind power curve modelling
+pvfactors	view factor irradiance modelling
+solarposition	solar geometry computation
+suncalc	sun and moon position
+astral	twilight and solar event computation
+timezonefinder	point in polygon timezone lookup
+pytzdata	timezone rule evaluation
+convertdate	calendar system conversion
+hijri-converter	hijri calendar conversion
+lunardate	lunar calendar conversion
+workalendar	business day calculation
+pandas-market-calendars	trading session computation
+exchange-calendars	exchange session generation
+bdateutil	business date arithmetic
+holidays	holiday rule evaluation

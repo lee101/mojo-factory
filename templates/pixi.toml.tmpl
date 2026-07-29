@@ -1,0 +1,20 @@
+[workspace]
+authors = ["Lee Penkman <leepenkman@gmail.com>"]
+channels = ["https://conda.modular.com/max-nightly", "conda-forge"]
+name = "__SLUG__"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+build = "bash build/build.sh"
+test = "python -m pytest tests -q"
+bench = "flock /tmp/mojo-bench.lock python bench/bench.py"
+
+[activation.env]
+PYTHONPATH = "python"
+
+[dependencies]
+mojo = "==1.0.0b3.dev2026072406"
+python = "3.13.*"
+pytest = "*"
+numpy = "*"

@@ -1,0 +1,5 @@
+logs/
+state/
+queue/
+.pixi/
+__pycache__/
