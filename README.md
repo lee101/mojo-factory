@@ -65,6 +65,52 @@ All via environment, all with working defaults:
 Any agent CLI that accepts a prompt on stdin and can edit files in `-C <dir>` can be
 substituted for codex.
 
+## Function-level conversion
+
+`bin/port.sh` ports a whole library. `bin/convert.py` does one function at a time,
+and it exists because the two ways of getting Python into Mojo differ in *trust*
+rather than in speed:
+
+```bash
+bin/convert.py kernels.py              # both tiers
+bin/convert.py kernels.py --no-agent   # transpiler only, report what it refuses
+bin/convert.py kernels.py --out ported/ --json report.json
+```
+
+**Tier 1** is [mojosub](https://github.com/lee101/mojosub), a deterministic
+transpiler over a typed numeric subset. When it accepts a function there is
+nothing to review — it followed a rule. It also refuses most code, which is why
+there is a tier 2.
+
+**Tier 2** hands the function to the agent, with the transpiler's own refusal
+reason (which names the construct that has to go), `MOJO_NOTES.md`, and the C ABI
+it must export spelled out character for character.
+
+The agent's output is then put through **the same gate as everything else**, which
+is the entire point:
+
+1. it has to compile;
+2. the exported symbol is bound by name through `ctypes` and called on six
+   generated inputs, and the return value **and every buffer** are compared
+   against CPython;
+3. it has to be at least `MIN_SPEEDUP` (default 1.5) times CPython, measured here.
+
+One repair pass with the failure text, because a dialect mistake is usually a
+one-line fix. Then it is reported as failed. Nothing is accepted on the agent's
+say-so — the agent is a generator, the gate is the judge, and that is the same
+rule the library pipeline follows with `pixi run build && pixi run test`.
+
+A function needs annotated numeric parameters and a scalar return to be a
+candidate at all, because that is what can be given a C ABI and checked
+automatically. A conversion nothing can check is a conversion nobody should ship.
+
+| var | default | meaning |
+| --- | --- | --- |
+| `MIN_SPEEDUP` | 1.5 | below this the conversion is thrown away |
+| `AGENT_TIMEOUT` | 1800 | seconds per agent attempt |
+| `MOJOSUB_PATH` | `/nvme0n1-disk/code/mojosub` | where the transpiler lives |
+| `MOJOSUB_MOJO` | — | the compiler; `MODULAR_HOME` is derived from it |
+
 ## Targets
 
 `targets.tsv` is `slug<TAB>pypi-package<TAB>scope`. `bin/gen_targets.py N` regenerates it:
@@ -88,6 +134,38 @@ and glue code -- packages with no compute to accelerate.
 - **Scope text is the fallback when upstream is unavailable.** If the package cannot be
   installed for parity testing, the scope line still names the algorithms, and the agent
   parity-tests against a reference implementation plus published test vectors.
+
+## Packaging finished ports (pixi-build / conda)
+
+Factory ports are hybrid: Mojo kernels compiled to a shared library + a Python ctypes wrapper.
+That remains the primary deliverable (`pixi run build && pixi run test`). For Mojo-native
+consumers we can additionally ship a precompiled Mojo package:
+
+```
+src/<pkg>/__init__.mojo   # Mojo API (precompiled to $PREFIX/lib/mojo/<pkg>.mojoc)
+src/capi.mojo             # @export C ABI used by the Python wrapper
+conda.recipe/recipe.yaml  # optional rattler-build / modular-community submission
+```
+
+Pilot: `mojo-wyhash` uses `preview = ["pixi-build"]` + `pixi-build-mojo`, then:
+
+```bash
+pixi publish --target-channel ./mojo-channel          # local indexed channel
+# or
+pixi publish --target-channel https://prefix.dev/<chan>  # free: 3GB public on prefix.dev
+# or PR recipe.yaml to https://github.com/modular/modular-community  # max visibility
+```
+
+R2/S3 also works (`s3://bucket/channel` or a public HTTPS mirror of an indexed channel). A
+working public mirror of the local channel is:
+
+`https://twohelixesstatic.twohelixes.com/mojo-channel`
+
+prefix.dev free (3GB public) + modular-community PRs remain the lowest-friction path for
+consumers doing `pixi add mojo-wyhash`.
+
+Requires pixi >= 0.75 (`pixi publish`). Pin `mojo`/`mojo-compiler` — precompiled artifacts
+are compiler-version-sensitive.
 
 ## Layout
 

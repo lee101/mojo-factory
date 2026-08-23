@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Unified per-repo pipeline: compat sweep (regate new Mojo, repair, push) then accel pass
+# (SIMD/parallel/GPU, gated, push). One worker: pixi envs are multi-GB and disk is tight.
+set -uo pipefail
+F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+mkdir -p "$F/state/swept" "$F/state/sweeping" "$F/state/sweep-attempted" \
+  "$F/state/accelled" "$F/state/accel-attempted" "$F/state/sweep-failed"
+while true; do
+  next=""
+  for f in "$F"/state/done/*; do
+    s=$(basename "$f")
+    [ -e "$F/state/swept/$s" ] && [ -e "$F/state/accelled/$s" ] && continue
+    [ -e "$F/state/sweep-failed/$s" ] && continue
+    [ -e "$F/state/accel-attempted/$s" ] && continue
+    [ -e "$F/state/sweep-attempted/$s" ] && [ ! -e "$F/state/swept/$s" ] && continue
+    [ -e "$F/state/sweeping/$s" ] || [ -e "$F/state/accelling/$s" ] && continue
+    d="$s"; [ -d "/nvme0n1-disk/code/$d/.git" ] || d="mojo-$s"
+    [ -d "/nvme0n1-disk/code/$d/.git" ] || { touch "$F/state/swept/$s" "$F/state/accelled/$s"; continue; }
+    git -C "/nvme0n1-disk/code/$d" rev-parse -q --verify HEAD >/dev/null 2>&1 || \
+      { touch "$F/state/sweep-failed/$s"; echo "no commits: $s"; continue; }
+    next="$s"; break
+  done
+  [ -z "$next" ] && { echo "[$(date -Is)] pipeline complete"; break; }
+  avail=$(df -BG --output=avail /nvme0n1-disk | tail -1 | tr -dc '0-9')
+  if [ "$avail" -lt 12 ]; then
+    echo "[$(date -Is)] low disk ${avail}G, pausing"
+    sleep 600
+    continue
+  fi
+  if [ ! -e "$F/state/swept/$next" ]; then
+    touch "$F/state/sweep-attempted/$next"
+    echo "[$(date -Is)] sweeping $next"
+    "$F/bin/sweep.sh" "$next" || true
+  fi
+  if [ -e "$F/state/swept/$next" ] && [ ! -e "$F/state/accelled/$next" ]; then
+    echo "[$(date -Is)] accelling $next"
+    touch "$F/state/accel-attempted/$next"
+    "$F/bin/accel-pass.sh" "$next" || true
+  fi
+done

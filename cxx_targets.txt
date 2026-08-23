@@ -1,0 +1,16 @@
+mojo-vcglib
+mojo-meshlab
+mojo-poissonrecon
+mojo-qhull
+mojo-levmar
+mojo-newuoa
+mojo-muparser
+mojo-openctm
+mojo-corto
+mojo-tinygltf
+mojo-lib3ds
+mojo-lib3mf
+mojo-libe57
+mojo-easyexif
+mojo-embree
+mojo-eigen

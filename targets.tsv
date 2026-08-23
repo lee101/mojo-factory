@@ -1,3 +1,42 @@
+mojo-vcglib	vcglib (/nvme0n1-disk/code/vendor-src/vcglib, GPL-3.0)	MeshLab's algorithm core, ported from vcg/complex/algorithms/: clean.h (duplicate/unreferenced removal, non-manifold detection), edge_collapse + local_optimization/tri_edge_collapse_quadric (QEM decimation), refine.h (loop/butterfly subdivision), smooth.h (laplacian/taubin/HC/scale-dependent), isotropic_remeshing.h, geodesic.h + geodesic_heat.h, point_sampling.h (montecarlo/poisson-disk/stratified), inertia.h (volume/mass/inertia tensor), convex_hull.h, hole.h (hole filling), curvature, closest.h/AABB grids, intersection.h
+mojo-meshlab	meshlab (/nvme0n1-disk/code/vendor-src/meshlab, GPL-3.0)	the filter layer over mojo-vcglib, ported from src/meshlabplugins/: filter_clean, filter_meshing (decimate/subdivide/remesh), filter_measure, filter_quality, filter_select, filter_colorproc, filter_sampling, filter_geodesic, filter_voronoi, filter_trioptimize, filter_create, filter_func. Expose a pymeshlab-compatible Python API (MeshSet / apply_filter) for the covered filters
+mojo-poissonrecon	PoissonRecon (bundled at /nvme0n1-disk/code/vendor-src/meshlab/src/meshlabplugins/filter_screened_poisson/Src, also /nvme0n1-disk/code/vendor-src/PoissonRecon)	screened Poisson surface reconstruction: octree build, multigrid solve, dual-contour isosurface extraction, density/confidence weighting
+mojo-qhull	qhull (/nvme0n1-disk/code/vendor-src/qhull)	convex hull (quickhull) in 2d/3d/nd, delaunay triangulation, voronoi diagram, halfspace intersection
+mojo-levmar	levmar (/nvme0n1-disk/code/vendor-src/levmar)	Levenberg-Marquardt nonlinear least squares, with and without analytic jacobian, box and linear constraints
+mojo-newuoa	newuoa (bundled at /nvme0n1-disk/code/vendor-src/vcglib/wrap/newuoa)	Powell's NEWUOA derivative-free unconstrained optimization by quadratic trust-region models
+mojo-muparser	muparser (/nvme0n1-disk/code/vendor-src/muparser)	mathematical expression parser: tokenizer, shunting-yard to bytecode, vectorized evaluation over arrays, user variables and functions
+mojo-openctm	OpenCTM (/nvme0n1-disk/code/vendor-src/openctm)	compressed triangle mesh format: MG1/MG2 codecs, LZMA stream, vertex/normal/uv quantization and prediction
+mojo-corto	corto (/nvme0n1-disk/code/vendor-src/corto)	fast mesh and point-cloud geometry compression: tunstall entropy coding, attribute quantization, connectivity coding
+mojo-tinygltf	tinygltf (/nvme0n1-disk/code/vendor-src/tinygltf)	glTF 2.0 and GLB parse/serialize, accessor and bufferView decode, sparse accessors, node transform resolution
+mojo-lib3ds	lib3ds (/nvme0n1-disk/code/vendor-src/lib3ds)	Autodesk 3DS chunk parser and writer, mesh/material/camera/light extraction, node hierarchy
+mojo-lib3mf	lib3mf (/nvme0n1-disk/code/vendor-src/lib3mf)	3MF read/write: OPC container, model XML, mesh and beam lattice, object transforms
+mojo-libe57	libE57Format (/nvme0n1-disk/code/vendor-src/libE57Format)	E57 point cloud container read/write: compressed vector codec, cartesian/spherical point decode, scan pose
+mojo-easyexif	easyexif (/nvme0n1-disk/code/vendor-src/easyexif)	JPEG EXIF metadata parse: IFD walk, focal length, orientation, GPS
+mojo-embree	embree (/nvme0n1-disk/code/vendor-src/embree)	high-performance ray tracing kernels: BVH build (binned SAH), packet and stream ray-triangle intersection, occlusion queries. Prime GPU-acceleration candidate
+mojo-eigen	Eigen (/nvme0n1-disk/code/vendor-src/eigen, MPL-2.0; bundled at vcglib/eigenlib/Eigen)	dense linear algebra subset vcglib actually uses: fixed-size 3x3/4x4 ops, LDLT/LLT/LU/QR, self-adjoint eigen solver, SVD, sparse CG for the smoothing and parametrization solvers
+mojo-libigl	libigl	discrete differential geometry: cotangent laplacian, massmatrix, geodesics, ARAP, winding number, per-vertex normals, AABB queries
+mojo-openmesh	openmesh	half-edge mesh data structure, topology traversal, edge collapse/split/flip primitives
+mojo-meshio	meshio	mesh format read/write: OBJ/PLY/STL/OFF/VTK/GLTF, zero-copy point+cell arrays
+mojo-manifold3d	manifold3d	watertight mesh boolean CSG, manifold guarantees, convex hull, minkowski
+mojo-pymeshfix	pymeshfix	hole filling, self-intersection removal, watertight repair
+mojo-fast-simplification	fast-simplification	quadric error metric decimation with attribute preservation
+mojo-xatlas	xatlas	UV atlas generation: chart segmentation, parameterization, packing
+mojo-open3d	open3d	point cloud registration (ICP/RANSAC/FPFH), voxel downsample, KD-tree, normal estimation, TSDF
+mojo-trimesh	trimesh	mesh boolean, surface sampling, ray-mesh queries, convex hull, mass properties
+mojo-pyvista	pyvista	mesh filters: clip, slice, threshold, contour, decimate, smooth, array wrangling
+mojo-potpourri3d	potpourri3d	geodesic distance (heat method), vector heat, mesh/point-cloud laplacians
+mojo-pyacvd	pyacvd	uniform remeshing via clustered voronoi decimation
+mojo-meshpy	meshpy	tetrahedral and triangle mesh generation (tetgen/triangle kernels)
+mojo-pygmsh	pygmsh	constructive mesh generation, geometry primitives, field-driven sizing
+mojo-pyrr	pyrr	3D math: vec3/vec4, mat3/mat4, quaternions, AABB, plane, ray - SIMD throughout
+mojo-transforms3d	transforms3d	rotation representation conversions: euler/quat/axangle/matrix, affine compose+decompose
+mojo-numpy-stl	numpy-stl	binary/ascii STL read-write, per-facet normals, volume/inertia
+mojo-pygltflib	pygltflib	glTF 2.0 / GLB parse and serialize, accessor decode, node transform resolution
+mojo-pycollada	pycollada	COLLADA DAE parse, geometry+controller+scene graph extraction
+mojo-mapbox-earcut	mapbox-earcut	robust polygon triangulation with holes
+mojo-vedo	vedo	mesh analysis ops: distances, densify, boolean, cut, quality metrics
+mojo-scikit-geometry	scikit-geometry	exact computational geometry predicates, arrangements, polygon ops
+mojo-quadpy	quadpy	numerical quadrature schemes over simplices and cubes
 mojo-scipy	scipy	signal/fft/linalg/optimize/interpolate/stats kernels
 mojo-numpy	numpy	core ufuncs, reductions, sorting, linalg, random
 mojo-pandas	pandas	columnar groupby/join/sort/rolling/resample kernels
@@ -51,9 +90,6 @@ mojo-intervaltree	intervaltree	interval tree queries
 mojo-rtree	rtree	R-tree spatial index
 mojo-pyclipper	pyclipper	polygon clipping and offsetting
 mojo-triangle	triangle	constrained Delaunay triangulation
-mojo-trimesh	trimesh	mesh boolean, sampling, ray queries
-mojo-open3d	open3d	point cloud registration, voxel ops, KD-tree
-mojo-pyvista	pyvista	mesh filters and array wrangling
 mojo-numexpr	numexpr	fused elementwise array expression evaluation
 mojo-bottleneck	bottleneck	fast moving-window and nan-aware reductions
 mojo-numagg	numagg	grouped and windowed aggregations
@@ -220,8 +256,6 @@ mojo-pybullet	pybullet	collision detection and dynamics
 mojo-box2d-py	box2d-py	2D physics solver
 mojo-pygame	pygame	blitting, sprite collision, mixer
 mojo-moderngl	moderngl	buffer and vertex math helpers
-mojo-pyrr	pyrr	3D math: vectors, matrices, quaternions
-mojo-transforms3d	transforms3d	rotation representation conversions
 mojo-quaternion	quaternion	quaternion array arithmetic
 mojo-scipy-spatial	scipy-spatial	KD-tree, convex hull, Voronoi
 mojo-noise-reduction	noise-reduction	spectral subtraction
@@ -260,9 +294,7 @@ mojo-tsfresh	tsfresh	time series feature extraction
 mojo-catch22	catch22	canonical time series characteristics
 mojo-sktime	sktime	time series transformers and classifiers
 mojo-pyclipper2	pyclipper2	polygon boolean ops and offsetting
-mojo-mapbox-earcut	mapbox-earcut	polygon triangulation
 mojo-bezier	bezier	bezier curve intersection and subdivision
-mojo-scikit-geometry	scikit-geometry	computational geometry predicates
 mojo-pygeos	pygeos	vectorized planar geometry
 mojo-geopandas	geopandas	spatial joins and overlay
 mojo-h3	h3	hexagonal hierarchical geospatial indexing
@@ -320,13 +352,7 @@ mojo-sparseqr	sparseqr	sparse QR decomposition
 mojo-scikit-umfpack	scikit-umfpack	sparse LU solve
 mojo-pypardiso	pypardiso	sparse direct solver
 mojo-fenics	fenics	finite element assembly
-mojo-meshio	meshio	mesh format read/write
-mojo-pygmsh	pygmsh	mesh generation
-mojo-meshpy	meshpy	tetrahedral mesh generation
 mojo-vtk	vtk	unstructured grid filters
-mojo-pyacvd	pyacvd	mesh remeshing
-mojo-libigl	libigl	discrete differential geometry ops
-mojo-potpourri3d	potpourri3d	geodesic distance and vector heat
 mojo-pyembree	pyembree	BVH ray intersection
 mojo-rtree-ray	rtree-ray	ray-scene traversal
 mojo-taichi	taichi	parallel spatial simulation kernels
@@ -681,7 +707,6 @@ mojo-dedalus	dedalus	spectral PDE solving
 mojo-shenfun	shenfun	spectral galerkin methods
 mojo-chebpy	chebpy	chebyshev approximation
 mojo-numpy-polynomial	numpy-polynomial	orthogonal polynomial evaluation
-mojo-quadpy	quadpy	numerical quadrature schemes
 mojo-cubature	cubature	adaptive multidimensional integration
 mojo-tanh-sinh	tanh-sinh	double exponential quadrature
 mojo-scipy-integrate	scipy-integrate	quadrature and ODE integration

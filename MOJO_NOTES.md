@@ -35,8 +35,14 @@ Pinned toolchain: `mojo ==1.0.0b3.dev2026072406` from `https://conda.modular.com
 - `mojo run` JITs in ~1.2s per invocation; a built shared lib + ctypes call is ~0.9us.
 
 ## GPU
-- Needs the `max` conda package (libmax.so) alongside `mojo`.
+- CONFIRMED WORKING on this machine's RTX 5090 (sm_120 / cc 12.0) with the plain `mojo`
+  1.0.0b2 package — probe compiled, launched a kernel and passed a host/device parity
+  check on 2026-07-29. The `max` conda package was NOT required; the installed `mojo`
+  already ships the `std.gpu` host API and runtime. Try without `max` first.
   `from std.gpu.host import DeviceContext`, `from std.gpu import thread_idx`.
+- Per-thread scratch (e.g. a traversal stack) comes from
+  `from std.memory import stack_allocation`, indexed by `thread_idx.x`. Do not malloc
+  per thread. Guard for overflow with a brute-force fallback path rather than UB.
 - `DeviceContext()` raises, so wrappers need `try:` / `except:`.
 - `ctx.enqueue_create_buffer[DType.float64](n)`, `ctx.enqueue_copy(dst, src)` (either
   direction, device buffer or raw host pointer),
