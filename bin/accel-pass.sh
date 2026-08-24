@@ -16,9 +16,32 @@ export PATH="$HOME/.pixi/bin:$PATH"
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }
-agent() {
-  printf '%s\n' "$1" | timeout "${PHASE_TIMEOUT:-14400}" "$CODEX" exec --yolo \
-    --profile ox -C "$REPO" --skip-git-repo-check - >>"$LOG" 2>&1
+
+# Run agent with a watchdog: if codex starts waiting on the usage limit, kill it early.
+agent() { # <prompt>
+  local off pid wd rc
+  off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+  local tmpf; tmpf=$(mktemp /tmp/accel-prompt-$SLUG.XXXXXX)
+  printf '%s\n' "$1" >"$tmpf"
+  timeout "${PHASE_TIMEOUT:-14400}" "$CODEX" exec --yolo \
+    --profile ox -C "$REPO" --skip-git-repo-check - <"$tmpf" >>"$LOG" 2>&1 &
+  pid=$!
+  (
+    while kill -0 "$pid" 2>/dev/null; do
+      sleep 60
+      tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q "Waiting for usage limit" \
+        && { kill "$pid" 2>/dev/null; exit; }
+    done
+  ) &
+  wd=$!
+  wait "$pid"; rc=$?
+  kill "$wd" 2>/dev/null
+  rm -f "$tmpf"
+  if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q "usage limit"; then
+    date -Is >"$F/state/OX_LIMITED"
+    return 75
+  fi
+  return $rc
 }
 finish() { rm -rf "$REPO/.pixi" "$REPO/dist"; rmdir "$F/state/accelling/$SLUG" 2>/dev/null; }
 
@@ -32,10 +55,8 @@ pixi install >>"$LOG" 2>&1 || { log "install failed"; finish; exit 1; }
 gate || { log "baseline gate fails, run compat sweep first"; finish; exit 1; }
 pixi run bench >"$F/logs/bench-$SLUG.before" 2>&1 || log "bench before failed (continuing)"
 
-sed -e "s|{{SLUG}}|$SLUG|g" -e "s|{{PKG}}|$PKG|g" -e "s|{{SCOPE}}||g" \
-  "$F/prompts/accel.md" > /tmp/accel-prompt-$SLUG.md
-agent "$(cat /tmp/accel-prompt-$SLUG.md)"
-rm -f /tmp/accel-prompt-$SLUG.md
+agent "$(sed -e "s|{{SLUG}}|$SLUG|g" -e "s|{{PKG}}|$PKG|g" -e "s|{{SCOPE}}||g" \
+  "$F/prompts/accel.md")"
 
 if ! gate; then
   log "accel regressed, repair pass"

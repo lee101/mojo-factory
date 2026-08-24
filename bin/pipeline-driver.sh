@@ -6,6 +6,20 @@ F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 mkdir -p "$F/state/swept" "$F/state/sweeping" "$F/state/sweep-attempted" \
   "$F/state/accelled" "$F/state/accel-attempted" "$F/state/sweep-failed"
 while true; do
+  if [ -e "$F/state/OX_LIMITED" ]; then
+    age=$(( $(date +%s) - $(stat -c %Y "$F/state/OX_LIMITED") ))
+    if [ "$age" -lt 780 ]; then
+      echo "[$(date -Is)] agent usage-limited, waiting"
+      sleep 300
+      continue
+    fi
+    rm -f "$F/state/OX_LIMITED"
+  fi
+  for d in /nvme0n1-disk/code/mojo-*; do
+    [ -d "$d/.pixi" ] || continue
+    s=$(basename "$d")
+    [ -e "$F/state/sweeping/$s" ] || [ -e "$F/state/accelling/$s" ] || rm -rf "$d/.pixi"
+  done
   next=""
   for f in "$F"/state/done/*; do
     s=$(basename "$f")
