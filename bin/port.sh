@@ -46,6 +46,11 @@ gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
 # failure burns the target's attempts without the compiler ever running, which is
 # how an entire queue can be exhausted in under a minute.
 ENV_FAULT_RE='command not found|: not found|No such file or directory|Permission denied|cannot open shared object|error while loading shared libraries|not a valid Mojo module'
+# A flaky toolchain is a different class from a missing binary. The compiler
+# intermittently loses its runtime library when several workers hammer the same
+# box; a retry clears it in seconds, and it must not burn a target or halt the
+# whole factory the way a genuinely broken environment should.
+TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable packages|failed to extract|temporary failure in name resolution|TLS connection was interrupted'
 fail() {
   # Scan only what this run appended. log_off() at failure time would be the
   # current size, which makes the window empty and hides every fault.
@@ -109,7 +114,21 @@ repair() { # <prompt>
     "$F/bin/agent.sh" "$REPO" high "$LOG"
 }
 
-gate() { pixi run build >> "$LOG" 2>&1 && pixi run test >> "$LOG" 2>&1; }
+raw_gate() { pixi run build >> "$LOG" 2>&1 && pixi run test >> "$LOG" 2>&1; }
+# Retry once on a toolchain hiccup before believing the failure. Observed on
+# mojo-cdlib: the port passed 9 parity tests and its bench, then the final
+# build died on a missing CompilerRT library and rebuilt cleanly 28s later.
+gate() {
+  local off
+  off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+  raw_gate && return 0
+  if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$TRANSIENT_RE"; then
+    log "transient toolchain error, retrying gate once"
+    sleep 20
+    raw_gate && { log "gate green on retry"; return 0; }
+  fi
+  return 1
+}
 # ---------- publish ----------
 # Publishing is the one step that can fail for reasons that have nothing to do
 # with the port: API rate limits, transient network. A target that built and
