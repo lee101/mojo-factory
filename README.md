@@ -53,17 +53,38 @@ All via environment, all with working defaults:
 
 | var | default | meaning |
 | --- | --- | --- |
-| `CODEX` | `$HOME/code/codex/codex-rs/target/release/codex` | agent binary, invoked as `codex exec --yolo3 -m $MODEL` |
-| `MODEL` | `gpt-5.6-sol` | agent model |
+| `MOJO_AGENT` | `bunny` | `bunny` = OP Bunny Alpha; `codex` = the legacy `codex exec` path |
+| `OP_BUNNY` | `$HOME/code/dotfiles/subagents/op-bunny.sh` | shared wrapper that pins the model |
+| `CODEX` | `$HOME/code/codex/codex-rs/target/release/codex` | agent binary for `MOJO_AGENT=codex` |
 | `GH_OWNER` | `lee101` | GitHub owner for `gh repo create` |
 | `GIT_NAME` / `GIT_EMAIL` | Lee Penkman | commit identity |
 | `WORKERS` | 3 | concurrent targets |
 | `MAXFAIL` | 2 | attempts per target before giving up |
+| `MAXTRIES` | 3 | sweep/accel attempts per already-published target |
 | `PHASE_TIMEOUT` | 14400 | seconds per agent phase |
+| `QUOTA_COOLDOWN` | 1800 | seconds to wait when the provider gives no parseable reset time |
 | `MOJO_FACTORY_WORKDIR` | parent of this repo | where ported repos are created |
 
-Any agent CLI that accepts a prompt on stdin and can edit files in `-C <dir>` can be
-substituted for codex.
+### The agent
+
+Every phase goes through `bin/agent.sh`, which owns the prompt buffering, the phase
+timeout, and the quota watchdog. The backend is one variable, so changing models is
+not a four-file edit:
+
+```bash
+MOJO_AGENT=bunny bin/sweep.sh mojo-deap     # OP Bunny Alpha (default)
+MOJO_AGENT=codex bin/sweep.sh mojo-deap    # legacy
+```
+
+The `bunny` backend calls the shared `dotfiles/subagents/op-bunny.sh` wrapper, so the
+factory and the other agent fleets on this box all run the same model by the same
+definition. Exit code 75 from any phase means the provider is rate limited -- that is
+not a target failure, so the attempt is not counted and the factory pauses instead.
+
+`agent.sh` also catches `pixi install` solver failures and hands them to the agent
+rather than abandoning the target. A stale `max` pin that conflicts with the `mojo`
+pin after a toolchain bump is the common case, and it is a one-line fix that only
+the agent can safely make per-repo.
 
 ## Function-level conversion
 

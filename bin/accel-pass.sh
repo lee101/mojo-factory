@@ -4,7 +4,6 @@
 set -uo pipefail
 F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CODE="${MOJO_FACTORY_WORKDIR:-$(dirname "$F")}"
-CODEX="${CODEX:-$HOME/code/codex/codex-rs/target/release/codex}"
 GIT_NAME="${GIT_NAME:-Lee Penkman}"
 GIT_EMAIL="${GIT_EMAIL:-leepenkman@gmail.com}"
 SLUG="$1"
@@ -17,41 +16,36 @@ export PATH="$HOME/.pixi/bin:$PATH"
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }
 
-# Run agent with a watchdog: if codex starts waiting on the usage limit, kill it early.
-agent() { # <prompt>
-  local off pid wd rc
-  off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
-  local tmpf; tmpf=$(mktemp /tmp/accel-prompt-$SLUG.XXXXXX)
-  printf '%s\n' "$1" >"$tmpf"
-  timeout "${PHASE_TIMEOUT:-14400}" "$CODEX" exec --yolo \
-    --profile ox -C "$REPO" --skip-git-repo-check - <"$tmpf" >>"$LOG" 2>&1 &
-  pid=$!
-  (
-    while kill -0 "$pid" 2>/dev/null; do
-      sleep 60
-      tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q "Waiting for usage limit" \
-        && { kill "$pid" 2>/dev/null; exit; }
-    done
-  ) &
-  wd=$!
-  wait "$pid"; rc=$?
-  kill "$wd" 2>/dev/null
-  rm -f "$tmpf"
-  if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q "usage limit"; then
-    date -Is >"$F/state/OX_LIMITED"
-    return 75
-  fi
-  return $rc
+# rc 75 means the provider is rate limited, not that the target is broken.
+agent() { printf '%s\n' "$1" | "$F/bin/agent.sh" "$REPO" high "$LOG"; }
+
+finish() { rm -rf "$REPO/.pixi" "$REPO/dist"; rm -rf "$F/state/accelling/$SLUG"; }
+# A claim that outlives its process is a leftover from a killed run, not a live
+# worker. Reclaim it, or one SIGKILL strands the target forever.
+claim() {
+  local lock="$F/state/accelling/$SLUG" owner
+  mkdir "$lock" 2>/dev/null && { echo $$ >"$lock/pid"; return 0; }
+  owner=$(cat "$lock/pid" 2>/dev/null)
+  [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null && return 1
+  log "reclaiming stale claim from pid ${owner:-unknown}"
+  rm -rf "$lock" && mkdir "$lock" 2>/dev/null && { echo $$ >"$lock/pid"; return 0; }
+  return 1
 }
-finish() { rm -rf "$REPO/.pixi" "$REPO/dist"; rmdir "$F/state/accelling/$SLUG" 2>/dev/null; }
 
 git -C "$REPO" rev-parse -q --verify HEAD >/dev/null 2>&1 || { log "no commits, skip"; exit 1; }
 mkdir -p "$F/state/accelling" "$F/state/accelled" "$F/state/accel-failed"
-if ! mkdir "$F/state/accelling/$SLUG" 2>/dev/null; then log "already accelling"; exit 0; fi
+claim || { log "already accelling"; exit 0; }
 
 cd "$REPO" || { finish; exit 1; }
 PKG=$(git remote get-url origin | sed 's|.*/mojo-||; s|\.git$||')
-pixi install >>"$LOG" 2>&1 || { log "install failed"; finish; exit 1; }
+# A dependency solve failure is the agent's problem to fix, not a reason to abandon
+# the target: stale `max` pins have conflicted with the mojo pin after a bump.
+if ! pixi install >>"$LOG" 2>&1; then
+  log "install failed, agent repair pass"
+  agent "pixi install fails in this repo: the dependency solve is unsatisfiable. Read the solver output in the tail of logs/accel-$SLUG.log and the current pixi.toml. The usual cause is a pinned package (especially 'max') that demands a different mojo-compiler version than the pinned 'mojo'. Fix the pins so they are mutually consistent and resolve, then run 'pixi install' until it succeeds. Do not delete tests or source to work around a dependency problem."
+  pixi install >>"$LOG" 2>&1 || { log "install still failing"; finish; exit 1; }
+  log "install repaired"
+fi
 gate || { log "baseline gate fails, run compat sweep first"; finish; exit 1; }
 pixi run bench >"$F/logs/bench-$SLUG.before" 2>&1 || log "bench before failed (continuing)"
 

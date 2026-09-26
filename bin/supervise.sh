@@ -6,13 +6,19 @@ DISK="${MOJO_FACTORY_DISK:-$F}"
 LOG="$F/logs/runner.log"
 freeg() { df --output=avail -BG "$DISK" | tail -1 | tr -dc 0-9; }
 
-# agent quota guard: port.sh writes AGENT_LIMITED with the reset time the provider gave us
+# agent quota guard. The marker is either a parseable reset time or "+<seconds>".
+# Free text is never written: an unparseable value would wedge the factory shut
+# forever, so anything unrecognised falls back to a bounded cooldown.
 if [ -s "$F/state/AGENT_LIMITED" ]; then
-  when=$(sed -e 's/^try again at //I' -e 's/\([0-9]\)\(st\|nd\|rd\|th\)/\1/g' "$F/state/AGENT_LIMITED")
-  ts=$(date -d "$when" +%s 2>/dev/null)
-  if [ -n "$ts" ] && [ "$(date +%s)" -ge "$ts" ]; then
+  raw=$(head -1 "$F/state/AGENT_LIMITED" | tr -d '\r')
+  case "$raw" in
+    +*) ts=$(( $(date +%s) + ${raw#+} )) ;;
+    *)  ts=$(date -d "$raw" +%s 2>/dev/null)
+        [ -z "$ts" ] && ts=$(( $(date +%s) + ${QUOTA_COOLDOWN:-1800} )) ;;
+  esac
+  if [ "$(date +%s)" -ge "$ts" ]; then
     rm -f "$F/state/AGENT_LIMITED"
-    echo "[$(date -Is)] agent quota reset ($when): resumed" >> "$LOG"
+    echo "[$(date -Is)] agent quota reset ($raw): resumed" >> "$LOG"
   else
     exit 0   # silent: cron runs every 5 minutes
   fi

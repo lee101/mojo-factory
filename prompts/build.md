@@ -9,9 +9,11 @@ You are already in the empty (or scaffolded) repo directory. `pixi.toml`, `LICEN
 `.gitignore` and `MOJO_NOTES.md` may already exist — keep and extend them, do not delete.
 
 READ FIRST
-- `MOJO_NOTES.md` in this directory. It contains hard-won Mojo 1.0 nightly dialect facts.
-  Violating them wastes hours. Especially: `@export("name")` + `abi("C")` before the arrow,
-  no parametric exports, buffers cross as `Int` addresses, `AnyOrigin[mut=True]`.
+- `MOJO_NOTES.md` in this directory. It contains the verified Mojo dialect facts for
+  the exact pinned compiler. Violating them wastes hours. Especially: `def` not `fn`,
+  `Int(x)` not `int(x)`, `Pointer` not `UnsafePointer`, `simd_width_of` from `std.sys`,
+  `@export("name")` requires an explicit `abi("C")` effect, buffers cross as `Int`
+  addresses, `AnyOrigin[mut=True]`. `parallelize` and `DeviceContext` do not exist.
 - `../mojo-plotly` and `../mojo-sklearn` (siblings of this repo) are DONE reference
   repos with the exact layout, build script, ctypes glue, test and bench style to mirror.
   Study them before writing code.
@@ -21,6 +23,23 @@ A real, useful, correct port — not a stub and not a toy. Pick the parts of {{P
 (a) compute-bound and (b) actually worth rewriting, implement them properly in Mojo, and
 expose a Python API that mirrors upstream's names and signatures so it is a drop-in for the
 covered subset. Breadth of API coverage matters, but correctness matters more.
+
+FIDELITY — read this before writing any kernel
+The port must track upstream's source closely enough that the two can be read side by
+side. Concretely, for every function you port:
+- Keep upstream's name. Do not invent a better one.
+- Keep upstream's argument order and defaults. A caller must not have to learn a new API.
+- Emit the functions in upstream's source order, in the same module grouping, so
+  `src/ported.mojo` reads top-to-bottom like the upstream file it came from.
+- Port the branch structure and the arithmetic in the same order upstream uses it.
+  When a loop is a straight-line elementwise map, keep the loop.
+- When Mojo forces a divergence (no parametric `@export`, buffers crossing as `Int`),
+  keep the upstream logic visible in the wrapper and isolate the divergence into the
+  ctypes glue, not into the kernel's structure.
+Where you cannot be faithful, say so explicitly in the README's coverage section:
+name the function and the reason. A documented divergence is fine; a silent one is a bug.
+Do NOT optimize in this pass. Correct, faithful, complete first. A later pass accelerates
+the same structure, and it can only do that if this pass left the structure intact.
 
 REQUIRED LAYOUT
     src/*.mojo             kernels; ONE compilation unit where practical (build cost is fixed)

@@ -57,9 +57,7 @@ FACTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOJOSUB = os.environ.get("MOJOSUB_PATH", "/nvme0n1-disk/code/mojosub")
 sys.path.insert(0, MOJOSUB)
 
-CODEX = os.environ.get(
-    "CODEX", os.path.expanduser("~/code/codex/codex-rs/target/release/codex"))
-MODEL = os.environ.get("MODEL", "gpt-5.6-sol")
+AGENT_SH = os.path.join(FACTORY, "bin", "agent.sh")
 EFFORT = os.environ.get("EFFORT", "high")
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "1800"))
 # How much faster than CPython an agent conversion has to be to be kept. Not 1.0:
@@ -298,14 +296,18 @@ def run_agent(workdir: str, fn_name: str, source: str, reason: str,
 
             Fix it. The file is already at {path}; edit it.
             """)
-    proc = subprocess.run(
-        [CODEX, "exec", "--yolo3", "-m", MODEL,
-         "--config", f"model_reasoning_effort={EFFORT}",
-         "-C", workdir, "--skip-git-repo-check", "-"],
-        input=prompt, text=True, capture_output=True, timeout=AGENT_TIMEOUT)
+    # agent.sh owns the log file, so the agent's own output lands there rather than
+    # on the pipe; read it back to build the failure message.
+    with tempfile.TemporaryDirectory() as td:
+        log = os.path.join(td, "agent.log")
+        proc = subprocess.run(
+            [AGENT_SH, workdir, EFFORT, log],
+            input=prompt, text=True, capture_output=True, timeout=AGENT_TIMEOUT)
+        with open(log, errors="replace") as fh:
+            out = fh.read() + (proc.stderr or "")
+        out = out or (proc.stdout or "")
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"agent exited {proc.returncode}: {(proc.stderr or proc.stdout)[-800:]}")
+        raise RuntimeError(f"agent exited {proc.returncode}: {out[-800:]}")
     return path
 
 
