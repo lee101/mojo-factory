@@ -1,6 +1,7 @@
 # Mojo dialect notes (verified by probe against the pinned compiler, not by docs)
 
-Toolchain these notes describe: `mojo ==1.1.0.dev2026081105`.
+Toolchain these notes describe: `mojo ==1.2.0.dev2026092605` (set in `bin/port.sh`; every
+repo gets this file with the marker already substituted).
 Every claim below was checked by compiling it. `bin/probe-confirm.py` and
 `bin/probe-hints.py` in the factory regenerate the list; re-run them after any
 toolchain bump rather than trusting this file.
@@ -70,26 +71,43 @@ while i < n:                           # scalar tail
 
 ## 4. Parallelism — REMOVED from the stdlib
 
-`parallelize` **does not exist** in this toolchain. It is not in `std.algorithm`
-(that module no longer even exports `sort`), not a builtin, and there is no
-`std.parallelism` / `std.threading`. The compiler offers no "did you mean" hint
-for it, which means it was removed rather than moved.
+Re-probed on 1.2.0, because losing CPU parallelism is the single biggest
+constraint on what a port can be:
 
-Consequence: a port that parallelised on the CPU must either
-(a) keep the work serial and say so honestly in its benchmark table, or
-(b) find the replacement in the `max` package and verify it compiles.
-Do NOT write `from std.algorithm import parallelize` and assume it works.
+| construct | result on 1.2.0 |
+| --- | --- |
+| `std.algorithm.parallelize` | `package 'algorithm' does not contain 'parallelize'` |
+| `std.sys.parallelize` | `package 'sys' does not contain 'parallelize'` |
+| `std.sys.spawn` | `package 'sys' does not contain 'spawn'` |
+| `std.threading` | `unable to locate module 'threading'` |
+| `std.algorithm.sort` | `package 'algorithm' does not contain 'sort'` |
+| bare `parallelize` | `use of unknown declaration 'parallelize'`, no hint |
 
-## 5. GPU — host API not present in the stdlib
+`std.algorithm` not exporting `sort` is the tell: the module has been gutted, not
+merely renamed, and the bare name drawing no "did you mean" hint means it was
+removed rather than moved. There is no CPU parallelism reachable from the
+stdlib, so the performance ceiling for these ports is SIMD.
 
-- `from std.gpu import thread_idx` **works**.
-- `from std.memory import stack_allocation` resolves, but its signature does not
-  match the old `stack_allocation[T](n)` form — check it by compiling.
+Do NOT write `from std.algorithm import parallelize` and assume it works. Keep
+the work serial and say so honestly in the benchmark table; only use something
+from the `max` package if you have compiled it and measured it.
+
+## 5. GPU — the `std.gpu` module is GONE in this toolchain
+
+Re-probed on 1.2.0: **`from std.gpu import thread_idx` no longer works.** The whole
+`std.gpu` module is absent (`unable to locate module 'gpu'`), not just its host
+half. An earlier revision of this file said `thread_idx` worked; that was true on
+1.1.0 and is false here, so do not trust it without re-probing.
+
 - **`DeviceContext` does not exist**: not in `std.gpu.host`, not in `std.gpu`, and
   the compiler has no replacement to suggest. `ctx.enqueue_create_buffer`,
   `enqueue_copy`, `enqueue_function` and `synchronize` are therefore unavailable
   too. The `max` package ships GPU sources under
   `site-packages/max/sys/_hal/`; look there if you need a device path.
+- `from std.memory import stack_allocation` resolves, but the old
+  `stack_allocation[T](n)` form does NOT: it fails with
+  `no matching function in call to 'stack_allocation'`. Check the signature by
+  compiling rather than assuming the historic shape.
 
 Practical rule: a GPU path is only worth writing if you can compile and run it.
 Otherwise state in the README that the port is CPU-only and why. The GPU is shared

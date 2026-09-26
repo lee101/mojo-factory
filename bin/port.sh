@@ -12,6 +12,10 @@ REPO="$CODE/$SLUG"
 LOG="$F/logs/$SLUG.log"
 # Quota wording differs per provider; keep it in one place, shared with agent.sh.
 QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Requests|quota exceeded|insufficient credits'
+# The one place the toolchain version is written down. The template and the notes
+# both interpolate it, so a bump is a one-line edit here instead of a sed across
+# 1400 repos plus a stale template that every new target is born from.
+MOJO_PIN="${MOJO_PIN:-1.2.0.dev2026092605}"
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 # gh is authenticated purely from $GITHUB_TOKEN here; ~/.config/gh holds nothing,
@@ -21,6 +25,7 @@ QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Reque
 # cron gives a minimal PATH; without this every gate fails with "pixi: not found"
 # and the target is scored as a build failure that never happened.
 export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+render() { sed -e "s/__SLUG__/$SLUG/g" -e "s/__MOJO_PIN__/$MOJO_PIN/g" "$1"; }
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 # Everything after this byte is what this run appends; fail() needs the boundary
 # so a fault from a previous run cannot be mistaken for a fault now.
@@ -92,10 +97,14 @@ cd "$REPO" || fail "cd"
 [ -d .git ] || git init -q
 # The factory's notes are authoritative and must win over whatever a previous
 # attempt left behind, or the agent re-learns a toolchain bump the hard way.
-cp "$F/MOJO_NOTES.md" .
+render "$F/MOJO_NOTES.md" > MOJO_NOTES.md
 cp -n "$F/templates/LICENSE" LICENSE
 cp -n "$F/templates/gitignore" .gitignore
-[ -f pixi.toml ] || sed "s/__SLUG__/$SLUG/" "$F/templates/pixi.toml.tmpl" > pixi.toml
+[ -f pixi.toml ] || render "$F/templates/pixi.toml.tmpl" > pixi.toml
+# An existing repo can still carry a pre-bump pin. Converge every `mojo` pin --
+# [dependencies] and the package host/build/run-dependencies alike -- so the gates
+# below measure the port against the toolchain we actually ship.
+sed -i -E "s|^(mojo[[:space:]]*=[[:space:]]*\")==[^\"]*|\1==${MOJO_PIN}|" pixi.toml
 
 # Effort maps to the agent's thinking level; rc 75 means the provider is rate limited.
 run_agent() { # <phase> <effort> <promptfile>

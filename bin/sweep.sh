@@ -9,9 +9,11 @@ GIT_EMAIL="${GIT_EMAIL:-leepenkman@gmail.com}"
 SLUG="$1"
 REPO="$CODE/$SLUG"
 LOG="$F/logs/sweep-$SLUG.log"
+MOJO_PIN="${MOJO_PIN:-1.2.0.dev2026092605}"
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
+render() { sed -e "s/__SLUG__/$SLUG/g" -e "s/__MOJO_PIN__/$MOJO_PIN/g" "$1"; }
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }
@@ -40,7 +42,10 @@ cd "$REPO" || { finish; exit 1; }
 # The factory's notes are the accumulated dialect knowledge and are authoritative.
 # An existing repo still carries whatever was true when it was built, so refresh it
 # before the agent reads it -- otherwise it re-learns a toolchain bump the hard way.
-cp "$F/MOJO_NOTES.md" "$REPO/MOJO_NOTES.md"
+render "$F/MOJO_NOTES.md" > "$REPO/MOJO_NOTES.md"
+# Regating is the whole point of this script: converge the pin before the gate so
+# the build is measured against the toolchain we ship, not the one it was born on.
+sed -i -E "s|^(mojo[[:space:]]*=[[:space:]]*\")==[^\"]*|\1==${MOJO_PIN}|" pixi.toml
 # A dependency solve failure is the agent's problem to fix, not a reason to abandon
 # the target: stale `max` pins have conflicted with the mojo pin after a bump.
 if ! pixi install >>"$LOG" 2>&1; then
@@ -69,7 +74,7 @@ fi
 
 git add -A
 git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
-  commit -q -m "mojo ==1.1.0.dev2026081105 toolchain bump; API compat verified" \
+  commit -q -m "mojo ==${MOJO_PIN} toolchain bump; API compat verified" \
   && log committed || log "nothing to commit"
 if git push -q origin HEAD >>"$LOG" 2>&1; then log pushed; else log "push failed"; finish; exit 1; fi
 touch "$F/state/swept/$SLUG"
