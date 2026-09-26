@@ -16,9 +16,11 @@ QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Reque
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 # cron gives a minimal PATH; without this every gate fails with "pixi: not found"
 # and the target is scored as a build failure that never happened.
-export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$PATH"
-
+export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
+# Everything after this byte is what this run appends; fail() needs the boundary
+# so a fault from a previous run cannot be mistaken for a fault now.
+LOG_BASE=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
 
 if [ -e "$F/state/done/$SLUG" ]; then echo "$SLUG already done"; exit 0; fi
 # stale-lock aware claim
@@ -39,9 +41,11 @@ gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
 # A missing tool is a broken environment, not a bad port. Scoring it as a build
 # failure burns the target's attempts without the compiler ever running, which is
 # how an entire queue can be exhausted in under a minute.
-ENV_FAULT_RE='command not found|: not found|No such file or directory: pixi|error while loading shared libraries'
+ENV_FAULT_RE='command not found|: not found|No such file or directory|Permission denied|cannot open shared object|error while loading shared libraries|not a valid Mojo module'
 fail() {
-  if tail -c "+$(( $(log_off) + 1 ))" "$LOG" 2>/dev/null | grep -qE "$ENV_FAULT_RE"; then
+  # Scan only what this run appended. log_off() at failure time would be the
+  # current size, which makes the window empty and hides every fault.
+  if tail -c "+$(( LOG_BASE + 1 ))" "$LOG" 2>/dev/null | grep -qE "$ENV_FAULT_RE"; then
     log "ENV FAULT, not a target failure: $* (attempt not counted)"
     local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
     [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
