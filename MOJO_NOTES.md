@@ -1,6 +1,6 @@
 # Mojo dialect notes (verified by probe against the pinned compiler, not by docs)
 
-Toolchain these notes describe: `mojo ==__MOJO_PIN__` (set in `MOJO_PIN` in
+Toolchain these notes describe: `mojo ==1.2.0.dev2026092605` (set in `MOJO_PIN` in
 `bin/port.sh`; every repo receives this file with the marker already substituted).
 Every claim below was checked by compiling it. `bin/probe-confirm.py` and
 `bin/probe-hints.py` in the factory regenerate the list; re-run them after any
@@ -131,6 +131,49 @@ tail coverage all still apply. The GPU is shared with production workloads — s
 the memory limits there. A CPU-only port is a legitimate answer when a kernel is
 below roughly 2 flops per byte, but "the host API is missing" is NOT a valid
 reason: it is in `max`, and 28 ports already use it.
+
+## 5b. Calling the `max` APIs — the details that actually bite
+
+These were each verified by compiling and running, across several ports. They are
+the difference between a one-line import fix and an afternoon.
+
+**The `max` conda package is required.** `max.mojoc` / `algorithm.mojoc` ship in
+`<prefix>/lib/mojo` from the `max` package, not from `mojo`. Without it the
+`max.*` imports fail with `unable to locate module 'max'`. Add it beside the mojo
+pin; it is released in lockstep, so `mojo ==X` goes with `max ==matching-version`:
+
+```toml
+[dependencies]
+mojo = "==1.2.0.dev2026092605"
+max  = "==26.7.0.dev2026092605"
+```
+
+**`parallelize` signature changed.** The bracket form no longer type-checks:
+
+- `parallelize(func, num_work_items, num_workers[, ctx])` — WORKS
+- `parallelize(func, num_work_items[, ctx])` — WORKS
+- `parallelize[func](n)` — does NOT type-check; the `[func]` form now binds the
+  origins overload.
+
+**The worker must be a plain `def`, not a `@parameter` closure.** `func` has to
+convert to `def(Int) -> None`, so a `@parameter def work(i: Int)` is rejected as
+`capturing thin`. Use a nested `def work(i: Int) {imm}:`. Nested `{imm}` calling
+nested `{imm}` also works, which the chunked variants need.
+
+**Pass an explicit worker count.** The 2-arg form crashed worker launch when
+called from a ctypes host. `sync_parallelize` segfaulted from a ctypes host
+entirely; prefer `parallelize` with an explicit count, and gate it behind a size
+threshold.
+
+**`max.gpu` exports** `block_dim`, `block_idx`, `thread_idx`, `global_idx`.
+`DeviceContext()` construction needs a `raises` context, the value is not
+`Writable` (do not `print` it), and there is no `ctx.devices()`.
+
+One trap worth naming: `max`'s caching memory allocator can request a very large
+chunk (mojo-eigen's batched GPU SVD asks for 16.75 GiB and gets
+`CUDA_ERROR_OUT_OF_MEMORY`) and a broad `except` will swallow that into a silent
+CPU fallback. If a GPU path "works" but never reports `used_gpu=1`, it is probably
+running on the CPU — check rather than assume.
 
 ## 6. Build
 
