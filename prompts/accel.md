@@ -18,17 +18,21 @@ DO
    biggest win available and is invisible in a kernel-level profile.
 4. Fuse adjacent elementwise passes so the data is read once instead of once per
    stage. Fusing usually beats widening the vector.
-5. Parallelism: `parallelize` no longer exists in this toolchain — see MOJO_NOTES.md
-   section 4. If this port used it, the code currently builds because it was removed
-   or the call was dropped. Do NOT reintroduce `from std.algorithm import parallelize`;
-   it does not compile. If you find a working replacement in the `max` package, use it
-   behind a size threshold and prove it with the benchmark. If there is none, leave
-   the work serial and record that honestly in the README.
-6. GPU: the `DeviceContext` host API is not present in this toolchain — see
-   MOJO_NOTES.md section 5. Do NOT write `from std.gpu.host import DeviceContext` or
-   `enqueue_create_buffer`; they do not compile. A GPU path is only worth shipping if
-   you can actually build and run one. Otherwise state in the README that the port is
-   CPU-only and why. That is a correct outcome, not a failure.
+5. Parallelism: `parallelize` MOVED PACKAGE, it was not removed. `from max.algorithm
+   import parallelize` (and `sync_parallelize`) is the live path and compiles on this
+   toolchain; `mojo-anndata` builds with it. `from std.algorithm import parallelize` and
+   `from std.threading import ...` do NOT compile. See MOJO_NOTES.md section 4. If a port
+   is serial where the work divides cleanly across cores, that is a real performance gap:
+   use the `max` form behind a size threshold, and prove the win with the benchmark. Only
+   keep it serial if the parallel form is genuinely slower at the sizes real callers pass.
+6. GPU: the host API MOVED PACKAGE, it was not removed. Use `from max.gpu.host import
+   DeviceContext` and `from max.gpu import block_idx, thread_idx`; `ctx.enqueue_create_buffer`,
+   `enqueue_copy`, `enqueue_function` and `synchronize` all compile. `from std.gpu import ...`
+   does NOT compile — the whole `std.gpu` module is gone. See MOJO_NOTES.md section 5.
+   28 ports already ship a working `max.gpu.host` path (e.g. mojo-numba, mojo-imagehash), so
+   "the GPU API is unavailable" is NOT an acceptable reason to skip it. `DeviceContext()`
+   needs a `raises` context. A CPU-only port is still the right answer for a kernel below
+   roughly 2 flops per byte — say so in the README, but do not claim the API is missing.
 ESCALATION ORDER — work down, stop at the first rung that wins
 Each rung is cheaper to get right than the one below it, and every rung is measured.
 1. Remove redundant work: repeated bounds checks, recomputed constants, redundant
@@ -38,10 +42,10 @@ Each rung is cheaper to get right than the one below it, and every rung is measu
    the single biggest win, and it is the rung most ports should stop at.
 4. Fuse adjacent elementwise passes into one pass so the data is read once, not
    once per stage. Fusing beats widening the vector on most loops.
-5. Parallelism across independent chunks above a size threshold — only if you have
-   found a replacement that actually compiles. See item 5 above.
-6. GPU — only for a kernel above roughly 2 flops per byte, and only if the host API
-   is reachable. See item 6 above.
+5. Parallelize across independent chunks above a size threshold, using
+   `max.algorithm.parallelize`. Only keep it if the benchmark shows it wins; a
+   parallel launch that loses to the serial path is worse than no parallelism.
+6. GPU — for a kernel above roughly 2 flops per byte, via `max.gpu.host`.
 
 For every rung you try, keep it only if `pixi run bench` shows it is faster, and
 record the before/after in the README table. A rung that does not pay gets reverted

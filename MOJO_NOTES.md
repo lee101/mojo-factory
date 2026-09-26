@@ -1,7 +1,7 @@
 # Mojo dialect notes (verified by probe against the pinned compiler, not by docs)
 
-Toolchain these notes describe: `mojo ==1.2.0.dev2026092605` (set in `bin/port.sh`; every
-repo gets this file with the marker already substituted).
+Toolchain these notes describe: `mojo ==__MOJO_PIN__` (set in `MOJO_PIN` in
+`bin/port.sh`; every repo receives this file with the marker already substituted).
 Every claim below was checked by compiling it. `bin/probe-confirm.py` and
 `bin/probe-hints.py` in the factory regenerate the list; re-run them after any
 toolchain bump rather than trusting this file.
@@ -69,49 +69,68 @@ while i < n:                           # scalar tail
 - `p.unsafe_load(i)` for a scalar load; `p.unsafe_offset(i)[]` also works.
 - Positional `p[i]` still compiles but warns; prefer `unsafe_load`.
 
-## 4. Parallelism — REMOVED from the stdlib
+## 4. Parallelism — moved from `std` to `max`
 
-Re-probed on 1.2.0, because losing CPU parallelism is the single biggest
-constraint on what a port can be:
+`parallelize` is NOT gone. It moved package. On 1.2.0:
 
-| construct | result on 1.2.0 |
+| import | result on 1.2.0 |
 | --- | --- |
-| `std.algorithm.parallelize` | `package 'algorithm' does not contain 'parallelize'` |
-| `std.sys.parallelize` | `package 'sys' does not contain 'parallelize'` |
-| `std.sys.spawn` | `package 'sys' does not contain 'spawn'` |
-| `std.threading` | `unable to locate module 'threading'` |
-| `std.algorithm.sort` | `package 'algorithm' does not contain 'sort'` |
-| bare `parallelize` | `use of unknown declaration 'parallelize'`, no hint |
+| `from max.algorithm import parallelize` | **WORKS** — this is the live path |
+| `from max.algorithm import sync_parallelize` | **WORKS** |
+| `from std.algorithm import parallelize` | `package 'algorithm' does not contain 'parallelize'` |
+| `from std.algorithm.functional import parallelize` | gone |
+| `from std.sys import parallelize` / `spawn` | `package 'sys' does not contain ...` |
+| `from std.threading import ...` | `unable to locate module 'threading'` |
+| `from std.algorithm import sort` | `package 'algorithm' does not contain 'sort'` |
 
-`std.algorithm` not exporting `sort` is the tell: the module has been gutted, not
-merely renamed, and the bare name drawing no "did you mean" hint means it was
-removed rather than moved. There is no CPU parallelism reachable from the
-stdlib, so the performance ceiling for these ports is SIMD.
+`std.algorithm` no longer exporting `sort` is the tell: the `std` module was gutted
+while the capability moved to `max`. So a port is parallelisable — just not through
+the old import. Verified by building `mojo-anndata` on 1.2.0: its
+`from max.algorithm import parallelize` compiles and the port builds.
 
-Do NOT write `from std.algorithm import parallelize` and assume it works. Keep
-the work serial and say so honestly in the benchmark table; only use something
-from the `max` package if you have compiled it and measured it.
+`max.parallel` and `max.core` do NOT exist; `max.algorithm` is the one.
 
-## 5. GPU — the `std.gpu` module is GONE in this toolchain
+Do NOT write `from std.algorithm import parallelize` — it does not compile. If a
+port is serial where it could be parallel, that is a real gap, not a toolchain
+excuse; use the `max` form behind a size threshold and prove it with the benchmark.
 
-Re-probed on 1.2.0: **`from std.gpu import thread_idx` no longer works.** The whole
-`std.gpu` module is absent (`unable to locate module 'gpu'`), not just its host
-half. An earlier revision of this file said `thread_idx` worked; that was true on
-1.1.0 and is false here, so do not trust it without re-probing.
+## 5. GPU — the host API moved from `std.gpu` to `max.gpu`
 
-- **`DeviceContext` does not exist**: not in `std.gpu.host`, not in `std.gpu`, and
-  the compiler has no replacement to suggest. `ctx.enqueue_create_buffer`,
-  `enqueue_copy`, `enqueue_function` and `synchronize` are therefore unavailable
-  too. The `max` package ships GPU sources under
-  `site-packages/max/sys/_hal/`; look there if you need a device path.
+Same story as parallelism. The `std.gpu` module is gone entirely
+(`unable to locate module 'gpu'`), so `from std.gpu import thread_idx` no longer
+resolves — but the capability is not gone with it:
+
+```mojo
+from max.gpu import block_idx, thread_idx      # WORKS
+from max.gpu.host import DeviceContext         # WORKS
+```
+
+and the full host surface is present and compiles on 1.2.0:
+
+- `ctx.enqueue_create_buffer[DType.float64](count)`
+- `ctx.enqueue_copy(dst, src)`
+- `ctx.enqueue_function[kernel](...)`
+- `ctx.synchronize()`
+- `ctx.name()`
+
+`DeviceContext()` construction needs a `raises` context (`def main() raises:`), and
+`DeviceContext` is not `Writable`, so do not `print` it. There is no
+`ctx.devices()`; enumerate through the `max.gpu` module instead.
+
+Verified end to end: `mojo-numba` and `mojo-imagehash` carry working `max.gpu.host`
+GPU paths and both build on 1.2.0.
+
 - `from std.memory import stack_allocation` resolves, but the old
   `stack_allocation[T](n)` form does NOT: it fails with
   `no matching function in call to 'stack_allocation'`. Check the signature by
   compiling rather than assuming the historic shape.
 
-Practical rule: a GPU path is only worth writing if you can compile and run it.
-Otherwise state in the README that the port is CPU-only and why. The GPU is shared
-with production workloads — see the memory limits in `prompts/accel.md`.
+Practical rule: a GPU path is only worth shipping if you can compile AND run it,
+and the rules in `prompts/accel.md` about launch count, single copy-in/copy-out and
+tail coverage all still apply. The GPU is shared with production workloads — see
+the memory limits there. A CPU-only port is a legitimate answer when a kernel is
+below roughly 2 flops per byte, but "the host API is missing" is NOT a valid
+reason: it is in `max`, and 28 ports already use it.
 
 ## 6. Build
 

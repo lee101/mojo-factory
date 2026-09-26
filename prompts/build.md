@@ -13,7 +13,8 @@ READ FIRST
   the exact pinned compiler. Violating them wastes hours. Especially: `def` not `fn`,
   `Int(x)` not `int(x)`, `Pointer` not `UnsafePointer`, `simd_width_of` from `std.sys`,
   `@export("name")` requires an explicit `abi("C")` effect, buffers cross as `Int`
-  addresses, `AnyOrigin[mut=True]`. `parallelize` and `DeviceContext` do not exist.
+  addresses, `AnyOrigin[mut=True]`. `parallelize` and `DeviceContext` MOVED from `std` to
+  `max` (`max.algorithm` / `max.gpu.host`); the `std` paths no longer compile.
 - `../mojo-plotly` and `../mojo-sklearn` (siblings of this repo) are DONE reference
   repos with the exact layout, build script, ctypes glue, test and bench style to mirror.
   Study them before writing code.

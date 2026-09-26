@@ -59,7 +59,7 @@ if gate; then
   log "gate pass as-is"
 else
   log "gate failed, agent repair pass"
-  agent "This port was written for an older Mojo and no longer builds against the pinned toolchain in pixi.toml. Read MOJO_NOTES.md first: it lists the dialect changes that matter (fn is now def, int()/float() are now Int()/Float64(), simdwidthof moved to std.sys, UnsafePointer is now Pointer, parallelize and DeviceContext no longer exist). Run 'pixi run build', fix the errors in src/ one at a time until it compiles, then run 'pixi run test' and fix until green. Keep the public Python API compatible and do not weaken or delete tests. If a kernel genuinely cannot be expressed without parallelize, keep it serial and say so in the README rather than inventing an API. Rerun until green."
+  agent "This port was written for an older Mojo and no longer builds against the pinned toolchain in pixi.toml. Read MOJO_NOTES.md first: it lists the dialect changes that matter (fn is now def, int()/float() are now Int()/Float64(), simdwidthof moved to std.sys, UnsafePointer is now Pointer, and parallelize/DeviceContext moved from the std packages to max.algorithm / max.gpu.host). Run 'pixi run build', fix the errors in src/ one at a time until it compiles, then run 'pixi run test' and fix until green. Keep the public Python API compatible and do not weaken or delete tests."
   if gate; then
     log "repaired gate pass"
   else
