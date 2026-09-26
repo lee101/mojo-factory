@@ -14,6 +14,10 @@ LOG="$F/logs/$SLUG.log"
 QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Requests|quota exceeded|insufficient credits'
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
+# gh is authenticated purely from $GITHUB_TOKEN here; ~/.config/gh holds nothing,
+# so under cron it is logged out and every "gh repo create" would fail.
+[ -z "${GITHUB_TOKEN:-}" ] && [ -f "$HOME/.github_token" ] && \
+  export GITHUB_TOKEN="$(cat "$HOME/.github_token")"
 # cron gives a minimal PATH; without this every gate fails with "pixi: not found"
 # and the target is scored as a build failure that never happened.
 export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
@@ -106,11 +110,57 @@ repair() { # <prompt>
 }
 
 gate() { pixi run build >> "$LOG" 2>&1 && pixi run test >> "$LOG" 2>&1; }
+# ---------- publish ----------
+# Publishing is the one step that can fail for reasons that have nothing to do
+# with the port: API rate limits, transient network. A target that built and
+# passed its gate must never be discarded because an upload blipped.
+publish() {
+  local i desc
+  desc="Mojo port of $PKG - ${SCOPE:0:180}"
+  for i in 1 2 3; do
+    if git remote get-url origin >/dev/null 2>&1; then
+      git push -q origin HEAD >>"$LOG" 2>&1 && return 0
+    else
+      gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
+        --description "$desc" >>"$LOG" 2>&1 && return 0
+    fi
+    log "publish attempt $i failed, backing off"
+    sleep $((i * 60))
+  done
+  # Transient, not a bad port: keep the work, keep the attempt, retry later.
+  log "PUBLISH PENDING after $i attempts: $SLUG"
+  mkdir -p "$F/state/publish-retry"
+  printf '%s publish-pending\n' "$SLUG" > "$F/state/publish-retry/$SLUG"
+  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
+  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+  rm -f "$F/state/failed/$SLUG"
+  exit 75
+}
+
 
 # ---------- build ----------
 # a target whose slug is listed in cxx_targets.txt is ported from upstream C/C++ source
 BUILD_PROMPT="$F/prompts/build.md"
 grep -qxF "$SLUG" "$F/cxx_targets.txt" 2>/dev/null && BUILD_PROMPT="$F/prompts/build_cxx.md"
+# Resume: a previous run already built this target and passed its gate; only the
+# upload failed. Re-running three agent phases to re-derive a finished port would
+# cost an hour to redo work that already exists.
+if [ -e "$F/state/publish-retry/$SLUG" ]; then
+  if gate; then
+    log "resume: gate still green, publishing only"
+    git add -A
+    git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
+        commit -q -m "$SLUG: Mojo port of $PKG" || true
+    publish
+    log "published https://github.com/$GH_OWNER/$SLUG"
+    rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null
+    rm -f "$F/state/failed/$SLUG" "$F/state/publish-retry/$SLUG"
+    date -Is > "$F/state/done/$SLUG"
+    exit 0
+  fi
+  log "resume: gate no longer green, rebuilding from scratch"
+  rm -f "$F/state/publish-retry/$SLUG"
+fi
 run_agent build high "$BUILD_PROMPT"
 if ! gate; then
   log "build gate failed, repair pass"
@@ -133,19 +183,11 @@ run_agent review low "$F/prompts/review.md"
 gate || fail "review gate"
 log "review gate ok"
 
-# ---------- publish ----------
 git add -A
 git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
     commit -q -m "$SLUG: Mojo port of $PKG" || true
-DESC="Mojo port of $PKG - ${SCOPE:0:180}"
-if git remote get-url origin >/dev/null 2>&1; then
-  git push -q origin HEAD >> "$LOG" 2>&1 || fail "push"
-else
-  gh repo create "$GH_OWNER/$SLUG" --public --source=. --push --description "$DESC" >> "$LOG" 2>&1 \
-    || fail "gh repo create"
-fi
+publish
 log "published https://github.com/$GH_OWNER/$SLUG"
-# reclaim disk: pixi envs are multi-GB each; pixi.lock makes them reproducible
 rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null
-rm -f "$F/state/failed/$SLUG"
+rm -f "$F/state/failed/$SLUG" "$F/state/publish-retry/$SLUG"
 date -Is > "$F/state/done/$SLUG"

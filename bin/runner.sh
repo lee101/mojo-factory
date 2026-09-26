@@ -16,6 +16,17 @@ while true; do
     sleep 600
     continue
   fi
+  # Targets whose port is already built and gated and only failed to upload come
+  # first: port.sh resumes them at the publish step, so they cost a push rather
+  # than an hour of agent work.
+  : > "$F/queue/publish.tsv"
+  for d in "$F"/state/publish-retry/*; do
+    [ -e "$d" ] || continue
+    s=$(basename "$d")
+    [ -e "$F/state/done/$s" ] && continue
+    [ -e "$F/state/running/$s" ] && continue
+    grep -P "^$s\t" "$F/targets.tsv" | head -1 >> "$F/queue/publish.tsv"
+  done
   # pending = queue minus done minus currently-running minus permanently-failed(>=MAXFAIL)
   awk -F'\t' 'NF>=2 && $1 !~ /^#/' "$F/targets.tsv" | while IFS=$'\t' read -r slug pkg scope; do
     [ -e "$F/state/done/$slug" ] && continue
@@ -24,6 +35,7 @@ while true; do
     [ "$n" -ge "${MAXFAIL:-2}" ] && continue
     printf '%s\t%s\t%s\n' "$slug" "$pkg" "$scope"
   done > "$F/queue/pending.tsv"
+  cat "$F/queue/publish.tsv" >> "$F/queue/pending.tsv"
 
   cnt=$(wc -l < "$F/queue/pending.tsv")
   echo "[$(date -Is)] pending=$cnt workers=$W done=$(ls "$F/state/done" | wc -l)"
