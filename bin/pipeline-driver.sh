@@ -18,6 +18,13 @@ while true; do
     fi
     rm -f "$F/state/OX_LIMITED"
   fi
+  # Same circuit breaker as runner.sh: never burn sweep/accel tries against a
+  # broken environment.
+  if [ -e "$F/state/ENV_FAULT" ]; then
+    echo "[$(date -Is)] env fault: $(head -1 "$F/state/ENV_FAULT") -- halting pipeline"
+    sleep 600
+    continue
+  fi
   for d in /nvme0n1-disk/code/mojo-*; do
     [ -d "$d/.pixi" ] || continue
     s=$(basename "$d")

@@ -7,8 +7,15 @@ export MOJO_FACTORY="$F"
 W="${1:-${WORKERS:-3}}"
 
 while true; do
-  # a paused or quota-limited factory must not chew through the queue
+  # A paused or quota-limited factory must not chew through the queue.
   if [ -e "$F/state/PAUSED" ] || [ -e "$F/state/AGENT_LIMITED" ]; then sleep 300; continue; fi
+  # Circuit breaker: a missing tool is an environment fault, and retrying the
+  # whole queue against a broken environment exhausts every target in seconds.
+  if [ -e "$F/state/ENV_FAULT" ]; then
+    echo "[$(date -Is)] env fault: $(head -1 "$F/state/ENV_FAULT") -- halting queue"
+    sleep 600
+    continue
+  fi
   # pending = queue minus done minus currently-running minus permanently-failed(>=MAXFAIL)
   awk -F'\t' 'NF>=2 && $1 !~ /^#/' "$F/targets.tsv" | while IFS=$'\t' read -r slug pkg scope; do
     [ -e "$F/state/done/$slug" ] && continue

@@ -41,6 +41,14 @@ fi
 [ -e "$F/state/PAUSED" ] && exit 0
 exec 9>"$F/state/supervise.lock"
 flock -n 9 || exit 0
-pgrep -f "mojo-factory/bin/runner.sh" >/dev/null && exit 0
-setsid nohup "$F/bin/runner.sh" "${WORKERS:-3}" >> "$LOG" 2>&1 &
-echo "[$(date -Is)] runner started" >> "$LOG"
+# runner.sh ports new targets; pipeline-driver.sh finishes the already-published
+# ones (sweep then accel). Both loop forever, so each needs its own liveness check
+# or a single kill strands its backlog.
+if [ "${RUNNER:-1}" = 1 ] && ! pgrep -f "mojo-factory/bin/runner.sh" >/dev/null; then
+  setsid nohup "$F/bin/runner.sh" "${WORKERS:-3}" >> "$LOG" 2>&1 &
+  echo "[$(date -Is)] runner started" >> "$LOG"
+fi
+if [ "${PIPELINE:-1}" = 1 ] && ! pgrep -f "mojo-factory/bin/pipeline-driver.sh" >/dev/null; then
+  setsid nohup "$F/bin/pipeline-driver.sh" >> "$LOG" 2>&1 &
+  echo "[$(date -Is)] pipeline driver started" >> "$LOG"
+fi

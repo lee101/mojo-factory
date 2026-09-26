@@ -14,16 +14,44 @@ LOG="$F/logs/$SLUG.log"
 QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Requests|quota exceeded|insufficient credits'
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
+# cron gives a minimal PATH; without this every gate fails with "pixi: not found"
+# and the target is scored as a build failure that never happened.
+export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$PATH"
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 
 if [ -e "$F/state/done/$SLUG" ]; then echo "$SLUG already done"; exit 0; fi
 # stale-lock aware claim
-if ! mkdir "$F/state/running/$SLUG" 2>/dev/null; then echo "$SLUG already running"; exit 0; fi
-trap 'rmdir "$F/state/running/$SLUG" 2>/dev/null' EXIT
+# A claim outliving its process is a leftover from a killed run, not a live worker.
+claim() {
+  local lock="$F/state/running/$SLUG" owner
+  mkdir "$lock" 2>/dev/null && { echo $$ >"$lock/pid"; return 0; }
+  owner=$(cat "$lock/pid" 2>/dev/null)
+  [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null && return 1
+  log "reclaiming stale claim from pid ${owner:-unknown}"
+  rm -rf "$lock" && mkdir "$lock" 2>/dev/null && { echo $$ >"$lock/pid"; return 0; }
+  return 1
+}
+claim || { echo "$SLUG already running"; exit 0; }
+trap 'rm -rf "$F/state/running/$SLUG"' EXIT
 
 gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
-fail() { log "FAILED: $*"; echo "$*" > "$F/state/failed/$SLUG"; gc_repo; exit 1; }
+# A missing tool is a broken environment, not a bad port. Scoring it as a build
+# failure burns the target's attempts without the compiler ever running, which is
+# how an entire queue can be exhausted in under a minute.
+ENV_FAULT_RE='command not found|: not found|No such file or directory: pixi|error while loading shared libraries'
+fail() {
+  if tail -c "+$(( $(log_off) + 1 ))" "$LOG" 2>/dev/null | grep -qE "$ENV_FAULT_RE"; then
+    log "ENV FAULT, not a target failure: $* (attempt not counted)"
+    local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
+    [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+    rm -f "$F/state/failed/$SLUG"
+    printf '%s %s: %s\n' "$(date -Is)" "$SLUG" "$*" > "$F/state/ENV_FAULT"
+    gc_repo
+    exit 70
+  fi
+  log "FAILED: $*"; echo "$*" > "$F/state/failed/$SLUG"; gc_repo; exit 1
+}
 
 # The agent running out of credit is not a failure of the target: do not burn an attempt,
 # do not record a failure, and stop the whole factory until the quota resets.
@@ -49,7 +77,9 @@ limited() {
 mkdir -p "$REPO"/{src,build,python,tests,bench}
 cd "$REPO" || fail "cd"
 [ -d .git ] || git init -q
-cp -n "$F/MOJO_NOTES.md" .
+# The factory's notes are authoritative and must win over whatever a previous
+# attempt left behind, or the agent re-learns a toolchain bump the hard way.
+cp "$F/MOJO_NOTES.md" .
 cp -n "$F/templates/LICENSE" LICENSE
 cp -n "$F/templates/gitignore" .gitignore
 [ -f pixi.toml ] || sed "s/__SLUG__/$SLUG/" "$F/templates/pixi.toml.tmpl" > pixi.toml
