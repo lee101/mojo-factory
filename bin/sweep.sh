@@ -11,7 +11,7 @@ REPO="$CODE/$SLUG"
 LOG="$F/logs/sweep-$SLUG.log"
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
-export PATH="$HOME/.pixi/bin:$PATH"
+export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }

@@ -17,6 +17,9 @@ TIMEOUT="${PHASE_TIMEOUT:-14400}"
 # Deliberately specific: a bench table must never trip the quota watchdog.
 QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Requests|quota exceeded|insufficient credits'
 OP_BUNNY="${OP_BUNNY:-$HOME/code/dotfiles/subagents/op-bunny.sh}"
+# The wrapper execs `op`, which lives in ~/.local/bin. cron gives a minimal PATH,
+# so guarantee it here rather than trusting every caller to have set it.
+export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
 backend() {
   case "${MOJO_AGENT:-bunny}" in
     bunny)
