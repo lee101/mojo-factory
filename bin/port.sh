@@ -114,27 +114,37 @@ gate() { pixi run build >> "$LOG" 2>&1 && pixi run test >> "$LOG" 2>&1; }
 # Publishing is the one step that can fail for reasons that have nothing to do
 # with the port: API rate limits, transient network. A target that built and
 # passed its gate must never be discarded because an upload blipped.
-publish() {
-  local i desc
-  desc="Mojo port of $PKG - ${SCOPE:0:180}"
-  for i in 1 2 3; do
-    if git remote get-url origin >/dev/null 2>&1; then
-      git push -q origin HEAD >>"$LOG" 2>&1 && return 0
-    else
-      gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
-        --description "$desc" >>"$LOG" 2>&1 && return 0
-    fi
-    log "publish attempt $i failed, backing off"
-    sleep $((i * 60))
-  done
-  # Transient, not a bad port: keep the work, keep the attempt, retry later.
-  log "PUBLISH PENDING after $i attempts: $SLUG"
+park_publish() {
+  log "PUBLISH PENDING: $SLUG"
   mkdir -p "$F/state/publish-retry"
   printf '%s publish-pending\n' "$SLUG" > "$F/state/publish-retry/$SLUG"
   local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
   [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
   rm -f "$F/state/failed/$SLUG"
   exit 75
+}
+publish() {
+  local i desc off
+  desc="Mojo port of $PKG - ${SCOPE:0:180}"
+  for i in 1 2 3; do
+    off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+    if git remote get-url origin >/dev/null 2>&1; then
+      git push -q origin HEAD >>"$LOG" 2>&1 && return 0
+    else
+      gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
+        --description "$desc" >>"$LOG" 2>&1 && return 0
+    fi
+    # A throttled API is not going to clear in 60s; it clears in minutes, and
+    # retrying into it only deepens the throttle. Park and let the next pass
+    # pick the target up, which costs a push rather than a rebuild.
+    if tail -c "+$((off + 1))" "$LOG" | grep -qiE 'rate limit|secondary rate|403'; then
+      log "github rate limited, parking instead of retrying"
+      park_publish
+    fi
+    log "publish attempt $i failed, backing off"
+    sleep $((i * 60))
+  done
+  park_publish
 }
 
 
