@@ -378,6 +378,34 @@ def test_an_agent_that_crashes_is_the_hosts_fault_not_the_ports(tmp_path):
     assert "STARVED" in r["calls"]
 
 
+def test_an_agent_sigtermed_by_the_host_is_not_a_bad_port(tmp_path):
+    """A build phase the host killed mid-flight is not a port that failed.
+
+    mojo-kornia and mojo-opencv-contrib-python were each SIGTERMed partway
+    through their build phase on 2026-10-01 -- the agents run in a systemd
+    scope capped with MemoryMax and TasksMax, on a box throwing
+    BlockingIOError [Errno 11] on fork. Neither wrote anything, so the gate
+    that followed failed on `build/build.sh: No such file or directory`, a
+    consequence of the kill rather than a property of the port. Both were
+    filed in state/failed and spent a MAXFAIL attempt each on the host
+    killing the agent.
+
+    SIGTERM is the sibling of the SIGKILL case above: nothing in this harness
+    sends one, so the signal itself is the evidence. What matters here is
+    that no attempt is charged and no failure is recorded.
+    """
+    r = classify(tmp_path,
+                 "[2026-10-01T15:52:02+00:00] mojo-kornia: phase=build rc=143\n"
+                 "[2026-10-01T15:52:02+00:00] mojo-kornia: agent killed by the host "
+                 "mid-phase (SIGTERM), not a port fault\n"
+                 "✨ Pixi task (build): bash build/build.sh\n"
+                 "/usr/bin/bash: build/build.sh: No such file or directory\n")
+    assert "STARVED" in r["calls"], r["calls"]
+    assert r["marker"] == "", r["marker"]
+    assert r["failed"] == "", r["failed"]
+    assert r["attempts"] == "1", r["attempts"]
+
+
 def _published_source() -> str:
     src = open(PORT_SH, encoding="utf8").read()
     start = src.index("published() {")

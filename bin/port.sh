@@ -88,8 +88,13 @@ TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable package
 # (`build/build.sh: No such file or directory`), and mojo-scipy-sparse was filed
 # in state/failed as a bad port with two MAXFAIL attempts spent on a host kill.
 # This only removes a false failure: the string is bash's own job-control report
-# for an unhandled SIGKILL, which no compiler or test emits.
-RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed'
+# for an unhandled SIGKILL, which no compiler or test emits. Its SIGTERM sibling
+# is the same failure with a different signal: on 2026-10-01 mojo-kornia and
+# mojo-opencv-contrib-python were each SIGTERMed mid-phase after writing nothing,
+# leaving an empty scaffold, and the gate then failed on
+# `build/build.sh: No such file or directory` -- two MAXFAIL attempts each spent
+# on the host killing the agent. run_agent names the case so it can be matched.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed|agent killed by the host mid-phase'
 # An agent that was killed for writing nothing (agent.sh's stall watchdog, rc 76)
 # is the provider's failure, not the port's and not the machine's. Charging it to
 # the target burns one of its MAXFAIL attempts on a phase that never ran; charging
@@ -198,6 +203,16 @@ run_agent() { # <phase> <effort> <promptfile>
   if [ "$rc" = 134 ] && tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q 'Bun has crashed'; then
     log "agent runtime aborted at startup, not a port fault; holding ${AGENT_ABORT_BACKOFF:-120}s before the queue re-dispatches"
     sleep "${AGENT_ABORT_BACKOFF:-120}"
+  fi
+  # rc 143 is a SIGTERM, and nothing in this harness sends one: agent.sh runs the
+  # backend under a plain `timeout $PHASE_TIMEOUT` with no wall clock anywhere near
+  # this short, and the agent phase is not inside a compile slot. It is the host
+  # taking the process away -- every agent runs in a systemd scope capped with
+  # MemoryMax and TasksMax, and this box has been throwing
+  # BlockingIOError [Errno 11] on fork all evening. Say so in the log, because the
+  # classification below reads this line and a reader needs to know what it means.
+  if [ "$rc" = 143 ]; then
+    log "agent killed by the host mid-phase (SIGTERM), not a port fault"
   fi
   return $rc
 }

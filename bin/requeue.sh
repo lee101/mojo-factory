@@ -20,7 +20,20 @@ MAXFAIL="${MAXFAIL:-2}"
 # five-day 3D port failure back to the queue for a fault that had not existed
 # since Sunday. The window starts at the last `phase=` line, which is the start
 # of the attempt that wrote state/failed.
-ENV_FAULT='pixi: (command )?not found|mojo: (command )?not found|omp: (command )?not found|op: (command )?not found|exec: .*: not found|command not found|Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed|killing stalled agent|stalled agent killed'
+ENV_FAULT='pixi: (command )?not found|mojo: (command )?not found|omp: (command )?not found|op: (command )?not found|exec: .*: not found|command not found|Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed|agent killed by the host mid-phase|killing stalled agent|stalled agent killed'
+#
+# The host-kill classes mirror port.sh's RESOURCE_RE, including the SIGTERM a
+# systemd scope sends when it caps an agent with MemoryMax or TasksMax. Two
+# targets lost a MAXFAIL attempt each to it on 2026-10-01.
+#
+# Deliberately NOT matching `phase=<name> rc=143`, which would have requeued the
+# two 2026-10-01 victims without reading their logs. It also matches
+# `phase=accel rc=143` in mojo-potpourri3d, a genuine five-day failure whose accel
+# phase was terminated rather than starved, so the pattern would have sent a real
+# port back to the queue for the same reason this file was wrong before. The
+# unnamed version of the signal is too loose to classify history with. Those two
+# targets were requeued by hand, with the empty-scaffold evidence in this pass's
+# summary. New occurrences are caught by name, because run_agent now says which.
 
 reset=0
 declare -a SLUGS
