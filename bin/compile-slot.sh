@@ -67,13 +67,36 @@ acquire() {
   while :; do
     now=$(date +%s)
     for s in $(seq 0 $((N - 1))); do
-      if mkdir "$D/slot-$s" 2>/dev/null; then echo "$$" >"$D/slot-$s/pid"; echo "$s"; return 0; fi
+      if mkdir "$D/slot-$s" 2>/dev/null; then
+        echo "$$" >"$D/slot-$s/pid"
+        # The lease must be dated the instant the slot is taken, not on the
+        # heartbeat loop's first tick. That loop sleeps $HB before it touches
+        # anything, so between mkdir and the first touch a brand-new slot had no
+        # hb file at all; `stat` then failed, hb read as 0, and the age computed
+        # as now-0 -- about 1.79e9 seconds, which is always >= TTL. So every
+        # contender declared the slot stale and reclaimed it, and reclaim kills
+        # the holder's tree. That is where the fleet's `Aborted (core dumped)`
+        # builds came from: 164 reclaims, every one reporting an epoch-sized
+        # age, each one killing a build that was in its first 30 seconds. Those
+        # aborts match RESOURCE_RE, so the gate charged them to the host, cost the
+        # target no attempt, and the same target retried into the same abort.
+        touch "$D/slot-$s/hb"
+        echo "$s"; return 0
+      fi
       # A slot outliving its process is a leftover from a killed run. Without this
       # reclaim one SIGKILL permanently shrinks the pool.
       p=$(cat "$D/slot-$s/pid" 2>/dev/null)
       hb=$(stat -c %Y "$D/slot-$s/hb" 2>/dev/null || echo 0)
-      if [ -z "$p" ] || ! kill -0 "$p" 2>/dev/null || [ "$(( now - hb ))" -ge "$TTL" ]; then
-        echo "compile-slot.sh: reclaiming slot-$s (pid ${p:-none}, heartbeat $(( now - hb ))s old)" >&2
+      # A missing hb file is not evidence of staleness. Reading it as 0 made the
+      # age now-0, which is always >= TTL, so the one condition that should never
+      # decide a reclaim -- a live holder with no timestamp to judge -- was the
+      # condition that always did. Fall back to liveness: if the owner is alive
+      # and we have no age, leave the slot alone and let the TTL logic work from
+      # the next heartbeat, which acquire() now writes immediately.
+      stale=0
+      if [ "$hb" -gt 0 ] && [ "$(( now - hb ))" -ge "$TTL" ]; then stale=1; fi
+      if [ -z "$p" ] || ! kill -0 "$p" 2>/dev/null || [ "$stale" -eq 1 ]; then
+        echo "compile-slot.sh: reclaiming slot-$s (pid ${p:-none}, heartbeat $(( hb > 0 ? now - hb : 0 ))s old)" >&2
         # Stop the work as well as taking the directory. Reclaiming the slot and
         # leaving the command running is how one deadlocked build outlives the
         # factory that reclaimed from it.

@@ -170,6 +170,60 @@ def test_a_finished_command_releases_its_slot(tmp_path):
     assert os.listdir(tmp_path / "factory" / "state" / "compile-slots") == []
 
 
+def test_a_freshly_taken_slot_is_not_stolen_by_the_next_contender(tmp_path):
+    """The lease must be dated when the slot is taken, not on the heartbeat
+    loop's first tick 30s later. Between mkdir and that first touch a new slot
+    had no `hb` file at all, so `stat` failed, hb read 0, and the age computed
+    as now-0 -- always >= TTL. Every contender therefore declared the slot stale
+    and reclaimed it, and reclaim kills the holder's tree: 164 reclaims, every
+    one printing a 1.79e9-second age, each one aborting a build seconds old.
+    Those aborts match RESOURCE_RE, so the gate charged them to the host, the
+    target kept its attempt, and it retried into the same abort."""
+    factory = tmp_path / "factory"
+    slots = factory / "state" / "compile-slots"
+    slots.mkdir(parents=True)
+    holder = subprocess.Popen(["sleep", "300"])
+    try:
+        # A live owner whose slot has not been heartbeat-stamped yet -- the exact
+        # state a real holder is in for its first HB seconds after taking it. All
+        # four slots are taken, so the contender must choose between waiting and
+        # stealing.
+        for s in range(4):
+            d = slots / f"slot-{s}"
+            d.mkdir()
+            (d / "pid").write_text(str(holder.pid))
+        r = subprocess.run(
+            ["bash", SLOT_SH, "true"],
+            env={**os.environ, "MOJO_FACTORY": str(factory),
+                 "COMPILE_SLOT_TTL": "1200", "COMPILE_SLOT_WAIT": "6"},
+            capture_output=True, text=True, timeout=90)
+        assert r.returncode == 75              # waited; did not steal
+        assert "reclaiming" not in r.stderr
+        assert holder.poll() is None, "the reclaim killed a live holder's tree"
+    finally:
+        holder.kill()
+
+
+def test_a_slot_is_heartbeat_stamped_the_moment_it_is_taken(tmp_path):
+    """Directly: the file exists at acquisition, so its age is seconds, not the
+    ~1.79e9 that an unstamped slot reports. The bound asserted is "nowhere near
+    the TTL", not "exactly 0", because the stamp and the reading straddle a
+    one-second clock tick and the invariant is the bound, not the tick."""
+    factory = tmp_path / "factory"
+    (factory / "state").mkdir(parents=True)
+    r = subprocess.run(
+        ["bash", "-c",
+         f'F={factory}; mkdir -p "$F/state/compile-slots"; '
+         f'( MOJO_FACTORY=$F bash {SLOT_SH} sleep 30 & ) ; '
+         f'for _ in $(seq 1 40); do '
+         f'  [ -f "$F/state/compile-slots/slot-0/hb" ] && break; sleep 0.25; done; '
+         f'age=$(( $(date +%s) - $(stat -c %Y "$F/state/compile-slots/slot-0/hb" 2>/dev/null || echo 0) )); '
+         f'echo "hb-age=$age"'],
+        capture_output=True, text=True, timeout=90)
+    age = int(r.stdout.strip().split("=")[1])
+    assert age < 60, r.stdout + r.stderr
+
+
 def test_a_stalled_agent_is_neither_the_targets_fault_nor_a_halt(tmp_path):
     """Observed 2026-10-01: mojo-csvkit's build phase sat 90 minutes writing
     nothing while the caller waited on PHASE_TIMEOUT. agent.sh now kills a
