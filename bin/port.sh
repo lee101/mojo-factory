@@ -180,6 +180,16 @@ run_agent() { # <phase> <effort> <promptfile>
   rc=$?
   log "phase=$phase rc=$rc"
   agent_limited "$off" && limited
+  # rc 134 is a SIGABRT, and the one seen on 2026-10-01 was the agent runtime
+  # dying ~200ms into startup, not this port misbehaving. Charging it to nobody
+  # is right; handing it straight back to the queue is not. The failure costs
+  # no attempt, so nothing else throttles it, and the queue re-dispatched it
+  # 13 seconds later: 1870 aborted phases across 431 targets in one hour. Wait
+  # here, while holding this worker slot, instead of spinning.
+  if [ "$rc" = 134 ] && tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q 'Bun has crashed'; then
+    log "agent runtime aborted at startup, not a port fault; holding ${AGENT_ABORT_BACKOFF:-120}s before the queue re-dispatches"
+    sleep "${AGENT_ABORT_BACKOFF:-120}"
+  fi
   return $rc
 }
 repair() { # <prompt>

@@ -35,6 +35,36 @@ CPW="${2:-${MOJO_FACTORY_CORES_PER_WORKER:-2}}"
 SAMPLE="${MOJO_FACTORY_IDLE_SAMPLE:-4}"
 [ "$SAMPLE" -ge 1 ] 2>/dev/null || SAMPLE=4
 
+# A second ceiling, and on this box the one that actually binds. Idle CPU is not
+# the scarce resource -- the agent runtime is. Measured 2026-10-01 with the real
+# op-bunny wrapper, same binary, same cwd, 30 launches per point:
+#
+#   1-4 concurrent agents     0 aborts / 30 launches
+#   6 concurrent agents      15 aborts / 18 launches
+#   8 concurrent agents      10 aborts / 24 launches
+#
+# Bun v1.4.0 dies with `panic(main thread): abort() called` about 200ms into
+# startup above four concurrent agents. The factory was running 59 of them, so
+# essentially every phase returned rc 134 in ~2s; port.sh correctly charged that
+# abort to the host rather than to the port, so nothing counted an attempt and
+# nothing errored either -- 1870 aborted phases across 431 targets in one hour,
+# one target published. That is the loop this number closes.
+#
+# The mechanism, so the number is not folklore. Every agent on this host is
+# launched by `op` through `systemd-run --scope --slice=agentwork.slice` with
+# `MemoryHigh=12G`. The slice is shared with every other tenant's agents, and
+# on 2026-10-01 it stood at 74.3G of its 80G high watermark and 7032 of its
+# 8192 task limit -- with the factory alone holding 59 of those agents. A new
+# agent that cannot get threads and memory dies in its first 200ms, and the
+# same window showed up on the factory side: `gh api rate_limit` failing with
+# "failed to create new OS thread (have 19 already; errno=11)". Reaping the
+# factory's own spin took the slice from 7032 to 5120 tasks. The slice is not
+# the factory's to resize, so the factory's own launch rate is the lever.
+# Overridable so a box with a fixed agent runtime can raise it; measured, not
+# guessed.
+MAXA="${MOJO_FACTORY_MAX_AGENTS:-4}"
+[ "$MAXA" -ge 1 ] 2>/dev/null || MAXA=1
+
 # user nice system idle iowait irq softirq steal. guest/guest_nice are already
 # re-accounted into user/nice and are excluded here for the usual reason.
 # MOJO_FACTORY_STAT_FILE exists so the arithmetic below can be exercised against
@@ -67,7 +97,8 @@ idle_pct=$(( (di * 100 + dt / 2) / dt ))
 idle_cores=$(( cores * idle_pct / 100 ))
 pool=$(( idle_cores / CPW ))
 [ "$pool" -gt "$CAP" ] && pool="$CAP"
+[ "$pool" -gt "$MAXA" ] && pool="$MAXA"
 [ "$pool" -lt 0 ] && pool=0
 l1=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null | cut -d. -f1)
-echo "loadroom: idle=${idle_pct}% of ${cores}c = ${idle_cores} free cores, ${CPW}/worker -> pool=${pool} (cap=${CAP} loadavg=${l1:-?})" >&2
+echo "loadroom: idle=${idle_pct}% of ${cores}c = ${idle_cores} free cores, ${CPW}/worker -> pool=${pool} (cap=${CAP} agents<=${MAXA} loadavg=${l1:-?})" >&2
 echo "$pool"

@@ -10,6 +10,7 @@ machine's, which are the target's, and what a compile slot may be held for.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import time
 
@@ -312,6 +313,25 @@ def test_loadroom_reports_a_bounded_integer(tmp_path):
     assert "idle=" in r.stderr      # the number is always explained
 
 
+def test_the_pool_never_exceeds_the_measured_agent_concurrency_ceiling(tmp_path):
+    """Idle CPU is not the scarce resource on this box; the agent runtime is.
+    Measured 2026-10-01 with the real op-bunny wrapper: 0 aborts in 30 launches
+    at four concurrent agents, 15 in 18 at six, 10 in 24 at eight. Bun v1.4.0
+    dies ~200ms into startup above the ceiling, and the factory was running 59
+    concurrent agents. port.sh charges that abort to the host rather than to
+    the port, so an over-driven fleet spins forever without ever recording a
+    failure. Idle room must not be allowed to raise the pool past the ceiling.
+    """
+    r = subprocess.run(
+        ["bash", LOADROOM_SH, "64"],       # a cap that must not be the binding one
+        env={**os.environ, "MOJO_FACTORY_IDLE_SAMPLE": "1",
+             "MOJO_FACTORY_MAX_AGENTS": "4"},
+        capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert int(r.stdout.strip()) <= 4
+    assert "agents<=4" in r.stderr      # the number is always explained
+
+
 AGENT_SH = os.path.join(ROOT, "bin", "agent.sh")
 
 
@@ -383,3 +403,83 @@ def test_a_target_counts_as_done_only_once_it_has_a_remote(tmp_path):
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
                     "https://example.invalid/mojo-x.git"], check=True)
     assert published()
+
+def _factory_with_stub_port(tmp_path, marker):
+    """A factory tree whose port.sh is a stub that just sits there.
+
+    bin/runner.sh is copied in verbatim rather than restated, because the
+    property under test is a property of the script the keepalive runs.
+    """
+    root = tmp_path / "factory"
+    for d in ("bin", "logs", "queue", "state/done", "state/running", "state/attempts"):
+        (root / d).mkdir(parents=True, exist_ok=True)
+    shutil.copy(RUNNER_SH, root / "bin" / "runner.sh")
+    (root / "bin" / "loadroom.sh").write_text("#!/usr/bin/env bash\necho 2\n")
+    stub = root / "bin" / "port.sh"
+    # The stub records the dispatch under a per-test directory and then sits
+    # there, so a surviving worker is observable both as a touched marker file
+    # and as a live process matching this file's own (unique) path.
+    stub.write_text(f'#!/usr/bin/env bash\ntouch "{marker}/$1"\nsleep 900\n')
+    os.chmod(stub, 0o755)
+    os.chmod(root / "bin" / "loadroom.sh", 0o755)
+    (root / "targets.tsv").write_text(
+        "".join(f"mojo-t{i}\tpkg{i}\tscope{i}\n" for i in range(1, 5)))
+    return root
+
+
+def test_retiring_a_runner_takes_its_whole_dispatch_round_with_it(tmp_path):
+    """A replaced runner must not leave port.sh workers behind.
+
+    The keepalive replaces runner.sh whenever it is gone, and xargs does not
+    die because its parent was signalled. Signalling the xargs alone is also
+    not enough -- measured on this box, `kill <xargs-pid>` leaves every
+    `bash -c` child running and reparented to init, and those orphans are
+    invisible to loadroom.sh's cap. Eight were found this way holding claims
+    in state/running while the runner that dispatched them was long gone.
+
+    The contract: after SIGTERM to the runner, no stub port.sh survives.
+    """
+    marker = tmp_path / "marks"
+    marker.mkdir()
+    root = _factory_with_stub_port(tmp_path, marker)
+    env = {**os.environ, "MOJO_FACTORY": str(root)}
+
+    proc = subprocess.Popen(
+        ["bash", str(root / "bin" / "runner.sh"), "2"],
+        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+    try:
+        deadline = time.time() + 30
+        while time.time() < deadline and len(list(marker.iterdir())) < 2:
+            time.sleep(0.5)
+        started = sorted(p.name for p in marker.iterdir())
+        assert len(started) >= 2, f"runner never dispatched a round: {started}"
+
+        proc.terminate()
+        proc.wait(timeout=30)
+
+        # Give the kernel a moment to finish reaping anything that was signalled.
+        deadline = time.time() + 15
+        while time.time() < deadline and _stub_workers(root):
+            time.sleep(0.5)
+        leaked = _stub_workers(root)
+        assert leaked == [], f"orphaned port.sh survived runner retirement: {leaked}"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        _kill_stub_workers(root)
+
+
+def _stub_workers(root):
+    """Live pids of this test's own stub port.sh, matched on its unique path."""
+    out = subprocess.run(
+        ["pgrep", "-f", f"{root}/bin/port.sh"], capture_output=True, text=True)
+    return [p for p in out.stdout.split() if p]
+
+
+def _kill_stub_workers(root):
+    for p in _stub_workers(root):
+        try:
+            os.kill(int(p), 9)
+        except (ProcessLookupError, ValueError):
+            pass

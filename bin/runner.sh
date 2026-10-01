@@ -6,6 +6,34 @@ F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export MOJO_FACTORY="$F"
 W="${1:-${WORKERS:-3}}"
 
+# A replaced runner must take its dispatch tree with it. xargs does not die
+# because its parent was signalled, so every runner that the keepalive replaced
+# left its xargs behind: 44 port.sh workers with PPID 1, holding no claim in
+# state/running, invisible to the queue and uncapped by loadroom.sh. That is
+# where 59 concurrent agents came from. Killing the runner has to mean killing
+# the round it is in the middle of.
+# The round is put in its own process group (`set -m` below) so that retiring a
+# runner can signal the whole tree. Signalling only the xargs is not enough, and
+# this is measured, not assumed: `kill <xargs-pid>` leaves all three of its
+# `bash -c` children running and reparented to init, which is exactly the shape
+# of the 8 port.sh workers with PPID 1 that were holding claims outside the
+# loadroom cap. `kill -TERM -<pgid>` takes all of them.
+CHILD=""
+# `exit` is load-bearing too: a handler that only signals the child lets the
+# loop run on, and a runner that ignores SIGTERM is a runner nothing can
+# replace -- which is how a stale one outlives the fix meant to retire it.
+retire_round() {
+  if [ -n "$CHILD" ]; then
+    # The group signal is what actually reaps the round. The bare-pid signal is
+    # kept as a fallback for the case where job control was unavailable and the
+    # xargs is not a group leader: without it, `kill -TERM -$CHILD` is a silent
+    # no-op and this handler would exit having freed nothing.
+    kill -TERM -"$CHILD" 2>/dev/null || kill -TERM "$CHILD" 2>/dev/null
+  fi
+  exit 143
+}
+trap retire_round TERM INT
+
 while true; do
   # A paused or quota-limited factory must not chew through the queue.
   if [ -e "$F/state/PAUSED" ] || [ -e "$F/state/AGENT_LIMITED" ]; then sleep 300; continue; fi
@@ -67,7 +95,13 @@ while true; do
     [ "$n" -ge "${MAXFAIL:-2}" ] && continue
     printf '%s\t%s\t%s\n' "$slug" "$pkg" "$scope"
   done > "$F/queue/pending.tsv"
-  cat "$F/queue/publish.tsv" >> "$F/queue/pending.tsv"
+  # publish.tsv goes first, not last. It used to be appended after 500-odd
+  # untouched targets, so a port that was already built and green -- and needed
+  # nothing but a push -- sat behind a queue of ports that each cost three
+  # agent phases. The comment above has always claimed these come first; the
+  # order is what made that true.
+  cat "$F/queue/publish.tsv" "$F/queue/pending.tsv" > "$F/queue/pending.new" \
+    && mv "$F/queue/pending.new" "$F/queue/pending.tsv"
 
   cnt=$(wc -l < "$F/queue/pending.tsv")
 
@@ -93,7 +127,9 @@ while true; do
   echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W) done=$(ls "$F/state/done" | wc -l)"
 
   if [ "$cnt" -eq 0 ]; then sleep 300; continue; fi
-
+  # `set -m` gives the round its own process group, so retire_round can signal
+  # the xargs and everything it forked as one unit.
+  set -m
   xargs -a "$F/queue/pending.tsv" -d'\n' -P "$eff" -I{} bash -c '
     IFS=$'"'"'\t'"'"' read -r slug pkg scope <<< "{}"
     F="$MOJO_FACTORY"
@@ -102,5 +138,9 @@ while true; do
     n=$(cat "$F/state/attempts/$slug" 2>/dev/null || echo 0)
     echo $((n+1)) > "$F/state/attempts/$slug"
     "$F/bin/port.sh" "$slug" "$pkg" "$scope"
-  '
+  ' &
+  CHILD=$!
+  set +m
+  wait "$CHILD"
+  CHILD=""
 done
