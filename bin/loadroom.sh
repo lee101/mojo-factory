@@ -36,33 +36,48 @@ SAMPLE="${MOJO_FACTORY_IDLE_SAMPLE:-4}"
 [ "$SAMPLE" -ge 1 ] 2>/dev/null || SAMPLE=4
 
 # A second ceiling, and on this box the one that actually binds. Idle CPU is not
-# the scarce resource -- the agent runtime is. Measured 2026-10-01 with the real
-# op-bunny wrapper, same binary, same cwd, 30 launches per point:
+# the scarce resource -- the agent runtime is. Bun v1.4.0 dies with
+# `panic(main thread): abort() called` about 200ms into startup when the shared
+# agent slice cannot give it threads and memory, so a phase returns rc 134 in
+# ~2s; port.sh charges that abort to the host rather than to the port, so nothing
+# counts an attempt and nothing errors either. The factory was running 59 agents
+# that way: 1870 aborted phases across 431 targets in one hour, one target
+# published. That is the loop this number closes.
 #
-#   1-4 concurrent agents     0 aborts / 30 launches
-#   6 concurrent agents      15 aborts / 18 launches
-#   8 concurrent agents      10 aborts / 24 launches
+# Re-measured 2026-10-01 between 16:55 and 17:00, and the number moved. The
+# earlier ceiling of 4 came from a measurement taken while that 59-agent runaway
+# was still saturating the slice: agentwork.slice stood at 74.3G of its 80G
+# MemoryHigh and 7032 of its 8192 task limit, and the launch failures were the
+# slice refusing a thread, not a property of the runtime. With the runaway reaped
+# the slice holds 4175 of 8192 tasks and 47.9G of 80G, and the cliff is well
+# above four. Measured with the real op-bunny wrapper, same binary, same cwd, a
+# trivial prompt:
 #
-# Bun v1.4.0 dies with `panic(main thread): abort() called` about 200ms into
-# startup above four concurrent agents. The factory was running 59 of them, so
-# essentially every phase returned rc 134 in ~2s; port.sh correctly charged that
-# abort to the host rather than to the port, so nothing counted an attempt and
-# nothing errored either -- 1870 aborted phases across 431 targets in one hour,
-# one target published. That is the loop this number closes.
+#   4 extra agents   0 aborts / 40 launches
+#   6 extra agents   2 aborts / 84 launches
+#   8 extra agents  11 aborts / 32 launches
+#
+# Each row launched that many agents ON TOP OF the live fleet's own concurrent
+# agents, so these are totals of roughly 8, 10 and 12 -- the point is that the
+# old ceiling of 4 sat below the safe region, not at its edge. The cliff is
+# between 10 and 12, and an abort is recoverable by design (a 120s backoff in
+# run_agent, and the attempt is refunded rather than charged), so 6 leaves real
+# margin below it. The previous 6-concurrent figure of 15 aborts in 18 launches
+# did not reproduce at all and is not recorded here: it was a measurement of a
+# saturated slice, and citing it as a runtime property is what pinned the fleet
+# at a third of the capacity this box actually has.
 #
 # The mechanism, so the number is not folklore. Every agent on this host is
 # launched by `op` through `systemd-run --scope --slice=agentwork.slice` with
-# `MemoryHigh=12G`. The slice is shared with every other tenant's agents, and
-# on 2026-10-01 it stood at 74.3G of its 80G high watermark and 7032 of its
-# 8192 task limit -- with the factory alone holding 59 of those agents. A new
-# agent that cannot get threads and memory dies in its first 200ms, and the
+# `MemoryHigh=12G`. The slice is shared with every other tenant's agents. The
 # same window showed up on the factory side: `gh api rate_limit` failing with
-# "failed to create new OS thread (have 19 already; errno=11)". Reaping the
-# factory's own spin took the slice from 7032 to 5120 tasks. The slice is not
-# the factory's to resize, so the factory's own launch rate is the lever.
-# Overridable so a box with a fixed agent runtime can raise it; measured, not
+# "failed to create new OS thread (have 19 already; errno=11)". The slice is not
+# the factory's to resize, so the factory's own launch rate is the lever -- which
+# is why this ceiling is expressed as a number of concurrent agents rather than
+# read off the slice. Overridable so a box with a fixed agent runtime can raise
+# it, and so a re-measurement can be applied without editing code; measured, not
 # guessed.
-MAXA="${MOJO_FACTORY_MAX_AGENTS:-4}"
+MAXA="${MOJO_FACTORY_MAX_AGENTS:-6}"
 [ "$MAXA" -ge 1 ] 2>/dev/null || MAXA=1
 
 # user nice system idle iowait irq softirq steal. guest/guest_nice are already

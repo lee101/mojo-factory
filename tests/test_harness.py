@@ -328,14 +328,21 @@ def test_loadroom_reports_a_bounded_integer(tmp_path):
     assert "idle=" in r.stderr      # the number is always explained
 
 
-def test_the_pool_never_exceeds_the_measured_agent_concurrency_ceiling(tmp_path):
+def test_the_pool_never_exceeds_the_configured_agent_concurrency_ceiling(tmp_path):
     """Idle CPU is not the scarce resource on this box; the agent runtime is.
-    Measured 2026-10-01 with the real op-bunny wrapper: 0 aborts in 30 launches
-    at four concurrent agents, 15 in 18 at six, 10 in 24 at eight. Bun v1.4.0
-    dies ~200ms into startup above the ceiling, and the factory was running 59
-    concurrent agents. port.sh charges that abort to the host rather than to
+    Bun v1.4.0 dies ~200ms into startup when the shared agentwork.slice cannot
+    give it a thread, and port.sh charges that abort to the host rather than to
     the port, so an over-driven fleet spins forever without ever recording a
-    failure. Idle room must not be allowed to raise the pool past the ceiling.
+    failure. Idle room must not raise the pool past the ceiling.
+
+    The ceiling is asserted as a CONTRACT -- the pool respects whatever bound it
+    is given -- and not as a literal 4. The number 4 was a measurement of a
+    saturated slice taken while a 59-agent runaway held it at 74.3G of its 80G
+    MemoryHigh; re-measured with the runaway reaped (4175/8192 tasks), 6 extra
+    agents cost 2 aborts in 84 launches and 8 cost 11 in 32, so pinning the test
+    to 4 would have locked in the stale number and silently re-capped the fleet
+    at a third of its measured capacity. What must not regress is that a
+    configured ceiling binds whatever its value.
     """
     r = subprocess.run(
         ["bash", LOADROOM_SH, "64"],       # a cap that must not be the binding one
@@ -345,6 +352,24 @@ def test_the_pool_never_exceeds_the_measured_agent_concurrency_ceiling(tmp_path)
     assert r.returncode == 0, r.stderr
     assert int(r.stdout.strip()) <= 4
     assert "agents<=4" in r.stderr      # the number is always explained
+
+
+def test_the_default_agent_ceiling_is_above_the_level_that_was_measured_to_abort(tmp_path):
+    """The default must not sit below the safe region, and it must not sit at
+    the cliff either. The re-measurement puts 6 extra agents at 2 aborts in 84
+    launches and 8 at 11 in 32, so the default has to be at least 6 (the
+    fleet was pinned at 4, below the region that was ever measured unsafe) and
+    at most 7 (below the observed cliff). This is a bound on the shipped
+    default, not a re-measurement: the numbers above are evidence, this is the
+    guard that stops a well-meaning edit from reintroducing either error.
+    """
+    r = subprocess.run(
+        ["bash", LOADROOM_SH, "64"],
+        env={k: v for k, v in os.environ.items() if k != "MOJO_FACTORY_MAX_AGENTS"}
+            | {"MOJO_FACTORY_IDLE_SAMPLE": "1"},
+        capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert 6 <= int(r.stdout.strip()) <= 7, r.stderr
 
 
 AGENT_SH = os.path.join(ROOT, "bin", "agent.sh")
