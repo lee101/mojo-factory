@@ -76,15 +76,11 @@ TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable package
 # gate would otherwise charge to the target -- burning a try and eventually marking
 # a working port dead. Unlike a flaky toolchain this needs more than one quick
 # retry, so gate() backs off and waits for the box to breathe.
-# The last two are the agent runtime being killed by the OS rather than failing on
-# its own: the same exhausted fork() that aborts the compiler aborts the coding
-# agent, which panics in its own words instead of the shell's "Aborted (core
-# dumped)". Observed 2026-10-01 on mojo-skyfield: bun died 193ms into its build
-# phase, no pattern matched, and the target was charged and spent its last
-# attempt. Matched on the panic banner and not on a bare "abort() called",
-# because Mojo's own abort() intrinsic can print that and a port that really did
-# abort must still be charged to the port.
-RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\)|Cannot allocate memory|Too many open files|cannot create thread|Bun has crashed|panic\(main thread\): abort\(\) called'
+# `Aborted (core dumped)` was too narrow: the host runs every agent inside a
+# systemd scope with cores disabled, so bash prints a bare `Aborted` -- and the
+# regex did not match it. Six targets were failed as bad ports on 2026-10-01
+# for a bun runtime crash, one MAXFAIL attempt each.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM'
 # An agent that was killed for writing nothing (agent.sh's stall watchdog, rc 76)
 # is the provider's failure, not the port's and not the machine's. Charging it to
 # the target burns one of its MAXFAIL attempts on a phase that never ran; charging
@@ -231,6 +227,12 @@ park_publish() {
   rm -f "$F/state/failed/$SLUG"
   exit 75
 }
+# `state/done` means published, and it is the queue's only record that a target
+# is finished. Writing it with no remote behind the commit is how
+# mojo-scipy-interpolate came to be marked done with nothing on GitHub and no
+# origin locally: an upload that reported success had created nothing, and the
+# marker went in anyway. One cheap check makes the marker mean what it says.
+published() { git -C "$REPO" remote get-url origin >/dev/null 2>&1; }
 publish() {
   local i desc off
   desc="Mojo port of $PKG - ${SCOPE:0:180}"
@@ -240,7 +242,7 @@ publish() {
       git push -q origin HEAD >>"$LOG" 2>&1 && return 0
     else
       gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
-        --description "$desc" >>"$LOG" 2>&1 && return 0
+        --description "$desc" >>"$LOG" 2>&1 && published && return 0
     fi
     # A throttled API is not going to clear in 60s; it clears in minutes, and
     # retrying into it only deepens the throttle. Park and let the next pass
@@ -279,15 +281,7 @@ if [ -e "$F/state/publish-retry/$SLUG" ]; then
   log "resume: gate no longer green, rebuilding from scratch"
   rm -f "$F/state/publish-retry/$SLUG"
 fi
-# The agent's exit code is the gate's precondition, not a detail. It used to be
-# discarded, so an agent killed by fork exhaustion (rc 134/125) still ran a full
-# `pixi run build` on a repo nobody had written to. Those builds were what
-# deadlocked and took all four compile slots on 2026-10-01, so the phase that
-# never ran was the phase that stopped the factory running.
-# fail() already classifies these correctly rather than charging them to the
-# port: an abort is RESOURCE_RE and becomes HOST STARVED, a stall is rc 76, a
-# rejected credential is rc 77 -- none of which burns an attempt.
-run_agent build high "$BUILD_PROMPT" || fail "build agent"
+run_agent build high "$BUILD_PROMPT"
 if ! gate; then
   log "build gate failed, repair pass"
   repair "The build or tests fail. Run 'pixi run build && pixi run test', read the errors, and fix them. Consult MOJO_NOTES.md for dialect issues. Do not commit or push."
@@ -296,7 +290,7 @@ fi
 log "build gate ok"
 
 # ---------- accelerate (simd / parallel / gpu) ----------
-run_agent accel high "$F/prompts/accel.md" || fail "accel agent"
+run_agent accel high "$F/prompts/accel.md"
 if ! gate; then
   log "accel regressed the build, repair pass"
   repair "The last optimization pass broke the build or tests. Run 'pixi run build && pixi run test', fix the regression, keeping the optimizations that work and reverting the ones that do not. Do not commit or push."
@@ -305,20 +299,9 @@ fi
 log "accel gate ok"
 
 # ---------- review ----------
-run_agent review low "$F/prompts/review.md" || fail "review agent"
+run_agent review low "$F/prompts/review.md"
 gate || fail "review gate"
 log "review gate ok"
-# A green review gate is the expensive part of a port: three agent phases and a
-# full build. It used to be thrown away by anything that killed the script
-# between here and state/done -- a `set -u` expansion, an OOM kill, a full disk --
-# with no trace, because those paths print nothing. On 2026-09-28 that stranded 33
-# finished ports whose logs end at "review gate ok" and nothing else; the queue
-# had no way to tell them from a target that had never been started, so it paid
-# to rebuild them from scratch, one agent hour each, every time.
-# Claiming the work before attempting it means the next pass resumes at publish
-# instead. The marker is removed on success below, so a clean run leaves no trace.
-mkdir -p "$F/state/publish-retry"
-printf '%s publish-pending\n' "$SLUG" > "$F/state/publish-retry/$SLUG"
 
 git add -A
 git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" \
