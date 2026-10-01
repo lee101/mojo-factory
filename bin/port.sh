@@ -216,6 +216,11 @@ raw_gate() { "$F/bin/compile-slot.sh" pixi run build >> "$LOG" 2>&1 \
 # build died on a missing CompilerRT library and rebuilt cleanly 28s later.
 gate() {
   local off i
+  # Whether the gate could not RUN, as opposed to ran and came back red. Both
+  # cases return 1, and a caller that cannot tell them apart will treat a busy
+  # host as a broken port. Set here, per call, so every gate site sees the
+  # verdict of the call it just made.
+  GATE_STARVED=0
   off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
   raw_gate && return 0
   if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$TRANSIENT_RE"; then
@@ -228,6 +233,7 @@ gate() {
   for i in 1 2 3; do
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$RESOURCE_RE" || return 1
     l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
+    GATE_STARVED=1
     log "host starved (load ${l1}), backing off before retry $i"
     sleep $(( i * 120 ))
     raw_gate && { log "gate green once the host had room"; return 0; }
@@ -307,6 +313,19 @@ if [ -e "$F/state/publish-retry/$SLUG" ]; then
     rm -f "$F/state/failed/$SLUG" "$F/state/publish-retry/$SLUG"
     date -Is > "$F/state/done/$SLUG"
     exit 0
+  fi
+  # A gate that could not run is not a gate that came back red. gate() backs off
+  # three times when the host is starved and then returns 1 exactly as it does for
+  # a real regression, so this path used to read starvation as "the port broke",
+  # delete the publish-retry marker and send a target that was already built and
+  # green back for an hour of rebuild work. mojo-torch-scatter sat on this path
+  # for three gate retries at load 100-121 on 2026-10-01 with 850 passing tests
+  # and a clean tree at 1ae8bba. Starvation outranks a red gate for the same
+  # reason it does in fail(): a starved box fails for reasons of its own, and the
+  # real verdict arrives on a later attempt when it has room.
+  if [ "${GATE_STARVED:-0}" = 1 ]; then
+    log "resume: gate could not run, host starved; keeping the port publishable"
+    park_publish
   fi
   log "resume: gate no longer green, rebuilding from scratch"
   rm -f "$F/state/publish-retry/$SLUG"
