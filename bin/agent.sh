@@ -54,11 +54,21 @@ backend() {
 # compete for this script's stdin.
 pf=$(mktemp "${TMPDIR:-/tmp}/mojo-agent-prompt.XXXXXX")
 cat >"$pf"
-trap 'rm -f "$pf"' EXIT
+trap '[ -n "${pid:-}" ] && kill_agent "$pid"; rm -f "$pf"' EXIT
 
 off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
 backend <"$pf" >>"$LOG" 2>&1 &
 pid=$!
+# Killing the backgrounded `backend` subshell does not kill the agent: `timeout`
+# and the coding agent below it are its children and are reparented to init.
+# mojo-csvkit's agent was found still running 2h17m after the phase that spawned
+# it had exited and its claim was gone, so the stall watchdog was reporting a
+# kill it had not performed and the fleet kept paying for the same target twice.
+kill_agent() {
+  local p="$1" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do kill_agent "$c"; done
+  kill "$p" 2>/dev/null
+}
 # A provider that starts waiting on quota is killed early rather than burning
 # the whole phase timeout -- and so is an agent that stops saying anything at
 # all. Observed 2026-10-01: mojo-csvkit's build phase sat for 90 minutes with
@@ -72,11 +82,11 @@ pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     sleep "${AGENT_POLL_SECS:-60}"
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$QUOTA_RE" && {
-      kill "$pid" 2>/dev/null
+      kill_agent "$pid"
       exit
     }
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$AUTH_RE" && {
-      kill "$pid" 2>/dev/null
+      kill_agent "$pid"
       exit
     }
     now=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
@@ -88,7 +98,7 @@ pid=$!
     quiet=$(( $(date +%s) - since ))
     if [ "$quiet" -ge "${AGENT_STALL_SECS:-1800}" ]; then
       echo "[$(date -Is)] agent.sh: no output for ${quiet}s, killing stalled agent" >>"$LOG"
-      kill "$pid" 2>/dev/null
+      kill_agent "$pid"
       exit
     fi
   done

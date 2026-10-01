@@ -25,6 +25,37 @@ WAIT="${COMPILE_SLOT_WAIT:-1800}"
 # days. The holder touches a heartbeat while it works; a slot whose heartbeat has
 # gone stale is reclaimed even though its owner still exists.
 TTL="${COMPILE_SLOT_TTL:-1200}"
+# The TTL above can only see a holder that died. It cannot see one that is alive
+# and doing nothing, which is the other way this semaphore empties itself: on
+# 2026-10-01 four `pixi run build` processes sat in futex_wait_queue with one
+# tick of CPU each after twenty minutes, their agents long since aborted on fork
+# exhaustion, and they held all four slots. The heartbeat could not catch them
+# because it only proves the wrapper still exists. With every slot gone no gate in
+# the factory could run, so nothing could be published and the queue looked idle
+# rather than broken. The lease is therefore renewed only while the command's
+# process tree is still consuming CPU; once it has been idle this long the
+# heartbeat stops, the TTL expires the slot, and the holder is reclaimed.
+# Deliberately generous: it takes ten minutes of *zero* CPU, not ten minutes of
+# slow work, so a build that is downloading or compiling is never disturbed.
+IDLE="${COMPILE_SLOT_IDLE:-600}"
+
+kill_tree() {
+  local p="${1:-}" c
+  [ -n "$p" ] || return 0
+  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c"; done
+  kill "$p" 2>/dev/null
+}
+# utime+stime of a process and everything under it. /proc/<pid>/stat is cut
+# after the comm field so a process name containing spaces or parentheses cannot
+# shift the column numbers.
+tree_cpu() {
+  local p="${1:-}" t=0 c v
+  [ -n "$p" ] || { echo 0; return 0; }
+  v=$(cut -d')' -f2 "/proc/$p/stat" 2>/dev/null | awk '{print $12+$15}')
+  t=${v:-0}
+  for c in $(pgrep -P "$p" 2>/dev/null); do t=$(( t + $(tree_cpu "$c") )); done
+  echo "$t"
+}
 HB="${COMPILE_SLOT_HB:-30}"
 D="$F/state/compile-slots"
 mkdir -p "$D"
@@ -43,6 +74,10 @@ acquire() {
       hb=$(stat -c %Y "$D/slot-$s/hb" 2>/dev/null || echo 0)
       if [ -z "$p" ] || ! kill -0 "$p" 2>/dev/null || [ "$(( now - hb ))" -ge "$TTL" ]; then
         echo "compile-slot.sh: reclaiming slot-$s (pid ${p:-none}, heartbeat $(( now - hb ))s old)" >&2
+        # Stop the work as well as taking the directory. Reclaiming the slot and
+        # leaving the command running is how one deadlocked build outlives the
+        # factory that reclaimed from it.
+        kill_tree "$p"
         rm -rf "$D/slot-$s"
       fi
     done
@@ -56,13 +91,37 @@ slot=$(acquire) || {
   echo "compile-slot.sh: no slot free after ${WAIT}s" >&2
   exit 75
 }
-trap 'rm -rf "$D/slot-$slot"' EXIT INT TERM
-# Renew the lease for as long as the command runs. This loop exits when the slot
-# directory is gone, which is how the reclaim above stops it touching a slot that
-# now belongs to someone else.
-( while touch "$D/slot-$slot/hb" 2>/dev/null; do sleep "$HB"; done ) &
+# Release only a slot this process still owns. After a reclaim the directory can
+# belong to a different holder, and the old one's exit trap would then delete the
+# new owner's slot out from under it.
+release() {
+  [ "$(cat "$D/slot-$slot/pid" 2>/dev/null)" = "$$" ] && rm -rf "$D/slot-$slot"
+  return 0
+}
+trap 'kill_tree "${cmd:-}"; release' EXIT INT TERM
+"$@" &
+cmd=$!
+# Renew the lease while the command's process tree is still consuming CPU, and
+# stop renewing once it has been idle for $IDLE. Stopping is what lets the TTL
+# reclaim a wedged holder; renewing forever is what made it un-reclaimable.
+# The loop also exits when the slot directory is gone, which is how a reclaim
+# stops this touching a slot that now belongs to someone else.
+(
+  last=$(tree_cpu "$cmd"); idle=0
+  while [ -d "$D/slot-$slot" ]; do
+    sleep "$HB"
+    [ -d "$D/slot-$slot" ] || exit
+    cur=$(tree_cpu "$cmd")
+    if [ "${cur:-0}" -gt "${last:-0}" ]; then
+      last=$cur; idle=0; touch "$D/slot-$slot/hb"
+    else
+      idle=$(( idle + HB ))
+      [ "$idle" -ge "$IDLE" ] && exit
+    fi
+  done
+) &
 hb_pid=$!
-"$@"
+wait "$cmd"
 rc=$?
 kill "$hb_pid" 2>/dev/null
 exit $rc

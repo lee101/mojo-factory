@@ -95,6 +95,22 @@ def test_a_starved_host_is_neither_the_environment_nor_the_target(tmp_path):
     assert r["attempts"] == "1"      # the factory's fault, not the target's
 
 
+def test_an_agent_runtime_killed_by_the_host_is_not_the_targets_fault(tmp_path):
+    """A host that cannot fork kills the agent too, and the agent panics in its
+    own words rather than the shell's. mojo-skyfield on 2026-10-01: bun died
+    193ms into its build phase, printed "Bun has crashed", and because none of
+    the patterns matched it was charged to the target and spent its last
+    attempt. The port had done nothing wrong and the box had."""
+    r = classify(tmp_path,
+                 "panic(main thread): abort() called\n"
+                 "oh no: Bun has crashed. This indicates a bug in Bun.\n"
+                 "agent.sh: line 35: 533883 Aborted\n"
+                 "mojo-x: phase=build rc=134\n")
+    assert r["failed"] == "", "a host-killed agent was charged to the target"
+    assert "STARVED" in r["calls"]
+    assert r["attempts"] == "1"
+
+
 @pytest.mark.parametrize("window", [
     "port.sh: line 74: pixi: command not found",
     "mojo: command not found",
@@ -119,6 +135,28 @@ def _lease(tmp_path, slot, pid, hb_age):
     (d / "hb").write_text("")
     t = time.time() - hb_age
     os.utime(d / "hb", (t, t))
+
+
+def _running(pid):
+    """True while the process exists and has not already exited.
+
+    A killed child stays in /proc until its parent reaps it, so a test that
+    only checks for the directory reports a killed process as still alive.
+    A zombie has finished; it is not running and is not doing work.
+    """
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf8") as fh:
+            return fh.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (FileNotFoundError, ProcessLookupError, IndexError):
+        return False
+
+
+def _wait_gone(pid, tries=20):
+    for _ in range(tries):
+        if not _running(pid):
+            return True
+        time.sleep(0.5)
+    return not _running(pid)
 
 
 def test_a_slot_whose_holder_stopped_reporting_is_reclaimed(tmp_path):
@@ -168,6 +206,73 @@ def test_a_finished_command_releases_its_slot(tmp_path):
         capture_output=True, text=True, timeout=90)
     assert r.returncode == 0
     assert os.listdir(tmp_path / "factory" / "state" / "compile-slots") == []
+
+
+def _slot_dir(tmp_path, slot):
+    return tmp_path / "factory" / "state" / "compile-slots" / f"slot-{slot}"
+
+
+def test_a_slot_whose_holder_is_alive_but_doing_nothing_is_reclaimed(tmp_path):
+    """The TTL could only see a holder that died.
+
+    On 2026-10-01 four `pixi run build` processes sat in futex_wait_queue with a
+    single tick of CPU after twenty minutes -- their agents had aborted on fork
+    exhaustion -- and they owned all four slots. Their heartbeat kept being
+    refreshed, because the toucher only proves the wrapper is still there, so
+    nothing could ever reclaim them and no gate in the factory could run. The
+    lease must lapse when the command stops consuming CPU, and reclaiming must
+    stop the command rather than leave it running unowned.
+    """
+    (tmp_path / "factory" / "state" / "compile-slots").mkdir(parents=True)
+    # Every slot held, by a live process that is doing no work: the wedge.
+    wedged = [subprocess.Popen(["sleep", "300"]) for _ in range(4)]
+    try:
+        for s, w in enumerate(wedged):
+            _lease(tmp_path, s, w.pid, hb_age=0)
+        r = subprocess.run(
+            ["bash", SLOT_SH, "true"],
+            env={**os.environ, "MOJO_FACTORY": str(tmp_path / "factory"),
+                 "COMPILE_SLOT_TTL": "3", "COMPILE_SLOT_HB": "1",
+                 "COMPILE_SLOT_WAIT": "30"},
+            capture_output=True, text=True, timeout=90)
+        assert r.returncode == 0, r.stderr
+        assert "reclaiming slot-0" in r.stderr, r.stderr
+        for w in wedged:
+            assert _wait_gone(w.pid), (
+                f"holder {w.pid} was displaced but left running unowned")
+    finally:
+        for w in wedged:
+            w.kill()
+            w.wait()
+
+
+def test_a_reclaimed_slot_is_not_deleted_by_the_old_holders_exit(tmp_path):
+    """A reclaim takes the directory away from the old holder. If that holder
+    then deletes the directory on its way out, it deletes the *new* owner's slot,
+    and the semaphore shrinks by one every time it recovers from a wedged one."""
+    (tmp_path / "factory" / "state" / "compile-slots").mkdir(parents=True)
+    holder = subprocess.Popen(
+        ["bash", SLOT_SH, "sleep", "3"],
+        env={**os.environ, "MOJO_FACTORY": str(tmp_path / "factory"),
+             "COMPILE_SLOT_HB": "1"},
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        slot = _slot_dir(tmp_path, 0)
+        for _ in range(40):
+            if (slot / "pid").exists():
+                break
+            time.sleep(0.25)
+        assert (slot / "pid").exists(), "the holder never took the slot"
+        # Stand in for a reclaim that has already handed slot-0 to someone else.
+        (slot / "pid").write_text("999999")
+        holder.wait(timeout=60)
+        assert slot.exists(), (
+            "the displaced holder deleted the slot on its way out; it no longer "
+            "owned it, and the new owner's slot is gone")
+    finally:
+        if holder.poll() is None:
+            holder.kill()
+        holder.wait()
 
 
 def test_a_stalled_agent_is_neither_the_targets_fault_nor_a_halt(tmp_path):
@@ -287,3 +392,36 @@ def test_a_silent_agent_is_killed_instead_of_running_for_four_hours(tmp_path):
     text = log.read_text()
     assert "killing stalled agent" in text
     assert "rc=76" in text
+
+
+def test_the_stall_watchdog_actually_kills_the_agent_it_reports(tmp_path):
+    """Reporting a kill is not performing one.
+
+    `backend` runs as a backgrounded subshell whose real child is `timeout` and
+    whose grandchild is the coding agent. Signalling only the subshell leaves
+    both of those running and reparents them to init. That is how mojo-csvkit's
+    agent was still alive 2h17m after its phase exited and its claim was gone:
+    the watchdog wrote "killing stalled agent", port.sh saw rc=76, the target
+    was handed back to the queue, and the factory paid for it a second time
+    while the first agent kept working.
+    """
+    marker = tmp_path / "grandchild.pid"
+    fake = tmp_path / "silent-agent"
+    # The grandchild records its own pid: if it is still there after agent.sh
+    # returns, the tree survived the kill.
+    fake.write_text(f'#!/usr/bin/env bash\necho $$ > {marker}\nsleep 600\n')
+    fake.chmod(0o755)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    r = subprocess.run(
+        ["bash", AGENT_SH, str(repo), "high", str(tmp_path / "phase.log")],
+        input="do the work\n",
+        env={**os.environ, "MOJO_AGENT": "codex", "CODEX": str(fake),
+             "AGENT_STALL_SECS": "2", "AGENT_POLL_SECS": "1",
+             "MOJO_FACTORY": str(tmp_path / "factory")},
+        capture_output=True, text=True, timeout=120)
+    assert r.returncode == 76, f"rc={r.returncode} stderr={r.stderr[-400:]}"
+    assert marker.exists(), "the fake agent never ran, so nothing was tested"
+    grandchild = int(marker.read_text().strip())
+    assert _wait_gone(grandchild), (
+        f"agent pid {grandchild} survived the stall kill; it is still running")
