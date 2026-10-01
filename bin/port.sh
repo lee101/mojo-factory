@@ -58,7 +58,10 @@ gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
 # target was filed as a fault of the machine and stopped the entire fleet. A
 # broken environment is a missing toolchain binary or a loader failure, and every
 # target hits those regardless of how well it is ported.
-ENV_FAULT_RE='pixi: (command )?not found|mojo: (command )?not found|exec: [^ ]+: not found|error while loading shared libraries'
+# `exec: <name>: not found` is only the environment's business for the agent
+# wrapper's own binaries. The same line from a port's build script means the
+# port called something it did not ship, which is the port's bug, not the host's.
+ENV_FAULT_RE='pixi: (command )?not found|mojo: (command )?not found|exec: (omp|op|op-bunny|codex|pixi|mojo): not found|error while loading shared libraries'
 # The factory starving its own compile semaphore is likewise neither a broken
 # environment nor a defect in the port. Charging it to the environment halts the
 # fleet; charging it to the target kills a good port. Both are wrong.
@@ -81,18 +84,21 @@ unaccount() {
 }
 fail() {
   # Scan only what this run appended. log_off() at failure time would be the
-  # current size, which makes the window empty and hides every fault.
-  local w; w=$(tail -c "+$(( LOG_BASE + 1 ))" "$LOG" 2>/dev/null)
+  # current size, which makes the window empty and hides every fault. The window
+  # is streamed, never captured: after three agent phases this file is tens of
+  # megabytes, and a shell variable that size is a way to run out of memory on
+  # the box that is already in trouble.
+  window_has() { tail -c "+$(( LOG_BASE + 1 ))" "$LOG" 2>/dev/null | grep -qE "$1"; }
   # Classify the narrowest thing first. Starvation is checked before the
   # environment because a starved box also loses its binaries, and misreading
   # that as a missing tool is what stopped this factory for three days.
-  if printf '%s' "$w" | grep -qE "$SLOT_RE|$RESOURCE_RE"; then
+  if window_has "$SLOT_RE|$RESOURCE_RE"; then
     log "HOST STARVED, not a target failure: $* (attempt not counted)"
     unaccount
     gc_repo
     exit 75
   fi
-  if printf '%s' "$w" | grep -qE "$ENV_FAULT_RE"; then
+  if window_has "$ENV_FAULT_RE"; then
     log "ENV FAULT, not a target failure: $* (attempt not counted)"
     unaccount
     rm -f "$F/state/failed/$SLUG"

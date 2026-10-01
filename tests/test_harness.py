@@ -104,6 +104,10 @@ def test_a_missing_toolchain_still_marks_the_environment(tmp_path, window):
     assert "mojo-x" in r["marker"]
     assert r["failed"] == ""
     assert r["attempts"] == "1"
+    # The marker on disk is the state; the log line is the only record of which
+    # target tripped it, and a branch that writes the marker silently reads as
+    # "nothing happened" to whoever reads the log next.
+    assert "ENV FAULT, not a target failure" in r["calls"]
 
 
 def _lease(tmp_path, slot, pid, hb_age):
