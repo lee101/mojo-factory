@@ -483,3 +483,95 @@ def _kill_stub_workers(root):
             os.kill(int(p), 9)
         except (ProcessLookupError, ValueError):
             pass
+
+
+SUPERVISE_SH = os.path.join(ROOT, "bin", "supervise.sh")
+
+
+def _driver_alive_source() -> str:
+    src = open(SUPERVISE_SH, encoding="utf8").read()
+    start = src.index("driver_alive() {")
+    end = src.find("\n}\n", start)
+    # Tolerate the one-line form, so a regression to a short guard is a
+    # behavioural failure the assertions below can report rather than a
+    # ValueError from the extractor.
+    return src[start:end + 3] if end != -1 else src[start:src.index("\n", start) + 1]
+
+
+def test_the_keepalive_only_counts_a_real_driver_as_alive(tmp_path):
+    """A false "alive" in the keepalive is a fleet that stops with nothing
+    erroring, which is the exact failure this file exists to prevent.
+
+    The check used to be `pgrep -f "mojo-factory/bin/runner.sh"`, which missed a
+    runner started as `./bin/runner.sh` and so let a second one start beside it
+    (two runners x 3 workers against an agent ceiling of 4). The fix matches on
+    cwd, but matching argv alone is not enough either: any process whose command
+    line merely names the file -- `tail -f bin/runner.sh`, a grep, an editor --
+    would keep the keepalive from restarting a driver that is genuinely dead.
+
+    The function is lifted out of bin/supervise.sh rather than restated, because
+    the property under test belongs to the script cron actually runs.
+    """
+    factory = tmp_path / "factory"
+    (factory / "bin").mkdir(parents=True)
+    # A driver that actually stays alive, so "started as X" is a real process
+    # with the argv the keepalive inspects rather than one that exits instantly.
+    (factory / "bin" / "runner.sh").write_text("#!/usr/bin/env bash\nsleep 60\n")
+    (factory / "bin" / "batch-driver.sh").write_text("#!/usr/bin/env bash\nsleep 60\n")
+    os.chmod(factory / "bin" / "runner.sh", 0o755)
+    os.chmod(factory / "bin" / "batch-driver.sh", 0o755)
+
+    def alive(name: str) -> bool:
+        # driver_alive signals through its exit status, exactly as supervise.sh
+        # consumes it (`! driver_alive runner.sh`).
+        r = subprocess.run(
+            ["bash", "-c", f'F={factory}\n{_driver_alive_source()}\ndriver_alive {name}'],
+            capture_output=True, text=True, timeout=60)
+        # A process can exit between pgrep and the /proc read; bash's own
+        # "No such file or directory" for that is expected and harmless. What
+        # must never appear is a basename/usage error, which is what aborted
+        # the keepalive when an argv field began with a dash.
+        assert "basename" not in r.stderr, r.stderr
+        return r.returncode == 0
+
+    # Nothing is running: the keepalive must be told to start the driver.
+    assert not alive("runner.sh")
+
+    # A command line that merely names the driver must not count, or the fleet
+    # stops dead the moment anyone tails or greps the script.
+    decoy = subprocess.Popen(
+        ["bash", "-c", "exec -a 'tail -f bin/runner.sh' sleep 30"],
+        cwd=factory, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(1)
+        assert not alive("runner.sh"), "a decoy argv was mistaken for a live driver"
+    finally:
+        decoy.kill()
+        decoy.wait(timeout=30)
+
+    # A real driver must count, however it was spelled -- otherwise supervise
+    # starts a second one and doubles the agent count. A relative path resolves
+    # against the driver's own cwd, so it only counts when it names this
+    # factory's copy; an absolute path counts from any directory, which is what
+    # a check that demanded cwd == the factory got wrong, since cron starts the
+    cases = (
+        (["bash", "bin/runner.sh", "1"], factory, True),
+        (["bash", f"{factory}/bin/runner.sh", "1"], tmp_path, True),
+        (["bash", "bin/runner.sh", "1"], tmp_path, False),
+    )
+    for argv, cwd, want in cases:
+        real = subprocess.Popen(
+            argv, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            time.sleep(1.5)
+            assert alive("runner.sh") is want, \
+                f"wrong verdict for {argv} from {cwd}"
+        finally:
+            real.terminate()
+            try:
+                real.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                real.kill()
+                real.wait(timeout=30)
+        time.sleep(0.5)
+        assert not alive("runner.sh"), "driver still counted after it exited"
