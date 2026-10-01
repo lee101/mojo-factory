@@ -48,15 +48,34 @@ trap 'rm -f "$pf"' EXIT
 off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
 backend <"$pf" >>"$LOG" 2>&1 &
 pid=$!
-# A provider that starts waiting on quota is killed early rather than burning the
-# whole phase timeout.
+# A provider that starts waiting on quota is killed early rather than burning
+# the whole phase timeout -- and so is an agent that stops saying anything at
+# all. Observed 2026-10-01: mojo-csvkit's build phase sat for 90 minutes with
+# the log frozen at one line, the process parked in ep_poll and zero files
+# written, while PHASE_TIMEOUT still had three and a half hours to run. The
+# caller could not tell a slow agent from a dead one, so it waited too.
+# Output growth is the only honest signal available: a working agent writes.
 (
+  size=$off
+  since=$(date +%s)
   while kill -0 "$pid" 2>/dev/null; do
-    sleep 60
+    sleep "${AGENT_POLL_SECS:-60}"
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$QUOTA_RE" && {
       kill "$pid" 2>/dev/null
       exit
     }
+    now=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+    if [ "$now" -gt "$size" ]; then
+      size=$now
+      since=$(date +%s)
+      continue
+    fi
+    quiet=$(( $(date +%s) - since ))
+    if [ "$quiet" -ge "${AGENT_STALL_SECS:-1800}" ]; then
+      echo "[$(date -Is)] agent.sh: no output for ${quiet}s, killing stalled agent" >>"$LOG"
+      kill "$pid" 2>/dev/null
+      exit
+    fi
   done
 ) &
 wd=$!
@@ -65,6 +84,14 @@ rc=$?
 kill "$wd" 2>/dev/null
 wait "$wd" 2>/dev/null
 
+
+# A stall is not a target failure and not a quota event: the agent was killed
+# for saying nothing. Distinct exit code so port.sh can charge it to neither
+# the port nor the machine's toolchain, and hand the target back to the queue.
+if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q 'killing stalled agent'; then
+  echo "agent.sh: stalled agent killed, rc=76" >>"$LOG"
+  exit 76
+fi
 if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$QUOTA_RE"; then
   date -Is >"$F/state/OX_LIMITED"
   echo "agent.sh: provider quota hit, rc=75" >>"$LOG"

@@ -18,6 +18,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT_SH = os.path.join(ROOT, "bin", "port.sh")
 SLOT_SH = os.path.join(ROOT, "bin", "compile-slot.sh")
+RUNNER_SH = os.path.join(ROOT, "bin", "runner.sh")
 
 
 def _port_source() -> str:
@@ -166,3 +167,89 @@ def test_a_finished_command_releases_its_slot(tmp_path):
         capture_output=True, text=True, timeout=90)
     assert r.returncode == 0
     assert os.listdir(tmp_path / "factory" / "state" / "compile-slots") == []
+
+
+def test_a_stalled_agent_is_neither_the_targets_fault_nor_a_halt(tmp_path):
+    """Observed 2026-10-01: mojo-csvkit's build phase sat 90 minutes writing
+    nothing while the caller waited on PHASE_TIMEOUT. agent.sh now kills a
+    silent agent, and that must be charged to neither the port nor the machine:
+    one burned MAXFAIL attempt per stall kills a good target, and an environment
+    marker halts the whole fleet for a condition that clears by itself."""
+    r = classify(tmp_path,
+                 "[2026-10-01T11:20:04+00:00] agent.sh: no output for 1800s, killing stalled agent\n"
+                 "agent.sh: stalled agent killed, rc=76\n")
+    assert r["marker"] == ""                  # not an environment fault
+    assert r["failed"] == ""                  # not the target's fault
+    assert r["attempts"] == "1"               # the attempt was handed back
+    assert "AGENT STALLED" in r["calls"]
+
+
+def _pool_size(tmp_path, load1, workers=16, ceil=64):
+    """Run the real pool-sizing block out of bin/runner.sh at a given load.
+
+    Lifted verbatim, like classify() does for port.sh: a test with its own copy
+    of the arithmetic proves nothing about the arithmetic the factory runs.
+    """
+    src = open(RUNNER_SH, encoding="utf8").read()
+    block = src[src.index("# Pool size this round."):src.index('if [ "$cnt" -eq 0 ]')]
+    factory = tmp_path / "factory"
+    (factory / "state" / "done").mkdir(parents=True, exist_ok=True)
+    script = tmp_path / "pool.sh"
+    script.write_text(
+        'set -uo pipefail\n'
+        f'F={factory}\nW={workers}\nLOAD_CEIL={ceil}\ncnt=681\n'
+        f'LOAD1={load1}\n'
+        f'{block}\n'
+        'echo "EFF=$eff"\n'
+    )
+    r = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return int(r.stdout.split("EFF=")[1].split()[0])
+
+
+@pytest.mark.parametrize("load1", [0, 87, 128, 400, 9999])
+def test_the_pool_never_collapses_to_zero_workers(tmp_path, load1):
+    """The wedge that survived every earlier fix: the pool was
+    `LOAD_CEIL - loadavg`, which is negative whenever another tenant pushes the
+    1-minute average past the ceiling, and a negative pool is a factory that
+    never starts again. Observed at load 87 on a 72-core box while the
+    factory's own tree was seven processes. Under load it must ease off, never
+    stop -- bin/compile-slot.sh is what caps the heavy pixi trees."""
+    assert _pool_size(tmp_path, load1) >= 1
+
+
+def test_the_pool_halves_under_load_and_crawls_when_the_box_is_gone(tmp_path):
+    assert _pool_size(tmp_path, 10) == 16      # room to spare: full pool
+    assert _pool_size(tmp_path, 64) == 8       # at the ceiling: half
+    assert _pool_size(tmp_path, 200) == 1      # twice the ceiling: crawl
+
+
+AGENT_SH = os.path.join(ROOT, "bin", "agent.sh")
+
+
+def test_a_silent_agent_is_killed_instead_of_running_for_four_hours(tmp_path):
+    """The stall watchdog, end to end against the real bin/agent.sh.
+
+    The backend is a fake that produces no output and never exits, which is
+    exactly what mojo-csvkit did on 2026-10-01: the log stayed at one line for
+    90 minutes and the caller kept waiting because PHASE_TIMEOUT is four hours.
+    The agent must be killed on silence and reported as rc=76 -- a code the
+    caller can charge to nobody in particular.
+    """
+    fake = tmp_path / "silent-agent"
+    fake.write_text('#!/usr/bin/env bash\nsleep 600\n')
+    fake.chmod(0o755)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    log = tmp_path / "phase.log"
+    r = subprocess.run(
+        ["bash", AGENT_SH, str(repo), "high", str(log)],
+        input="do the work\n",
+        env={**os.environ, "MOJO_AGENT": "codex", "CODEX": str(fake),
+             "AGENT_STALL_SECS": "2", "AGENT_POLL_SECS": "1",
+             "MOJO_FACTORY": str(tmp_path / "factory")},
+        capture_output=True, text=True, timeout=120)
+    assert r.returncode == 76, f"rc={r.returncode} stderr={r.stderr[-400:]}"
+    text = log.read_text()
+    assert "killing stalled agent" in text
+    assert "rc=76" in text

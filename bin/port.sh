@@ -77,6 +77,11 @@ TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable package
 # a working port dead. Unlike a flaky toolchain this needs more than one quick
 # retry, so gate() backs off and waits for the box to breathe.
 RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\)|Cannot allocate memory|Too many open files|cannot create thread'
+# An agent that was killed for writing nothing (agent.sh's stall watchdog, rc 76)
+# is the provider's failure, not the port's and not the machine's. Charging it to
+# the target burns one of its MAXFAIL attempts on a phase that never ran; charging
+# it to the environment halts the fleet for a condition that clears on its own.
+STALL_RE='killing stalled agent|stalled agent killed'
 # A fault that is not the target's must not consume one of its MAXFAIL attempts.
 unaccount() {
   local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
@@ -94,6 +99,12 @@ fail() {
   # that as a missing tool is what stopped this factory for three days.
   if window_has "$SLOT_RE|$RESOURCE_RE"; then
     log "HOST STARVED, not a target failure: $* (attempt not counted)"
+    unaccount
+    gc_repo
+    exit 75
+  fi
+  if window_has "$STALL_RE"; then
+    log "AGENT STALLED, not a target failure: $* (attempt not counted)"
     unaccount
     gc_repo
     exit 75

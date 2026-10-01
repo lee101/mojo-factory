@@ -61,15 +61,36 @@ while true; do
 
   cnt=$(wc -l < "$F/queue/pending.tsv")
 
-  # Pool size this round: the configured ceiling, shrunk to available headroom.
-  l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
+  # Pool size this round.
+  #
+  # Whole-box load average is a brake here, never a veto. This host is shared:
+  # production and a browser farm put the 1-minute average in the high 80s on
+  # 72 cores while the factory's own tree is seven processes. Subtracting that
+  # average from the ceiling produced a negative pool, the `eff < 1` guard
+  # caught it, and the runner logged a negative worker count every round
+  # forever -- a factory that never starts again. That is what held the queue
+  # at 338 while the log looked alive.
+  #
+  # So: ease off under load, never stop. bin/compile-slot.sh is what actually
+  # caps the heavy pixi trees and the per-target claim() is what stops two
+  # workers taking the same repo; the agent pool only has to stay bounded.
+  # LOAD1 is an override so the sizing can be exercised without waiting for a
+  # real load spike to appear on the box.
+  l1=${LOAD1:-$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)}
   eff="$W"
-  headroom=$(( LOAD_CEIL - l1 ))
-  if [ "$headroom" -lt "$eff" ]; then eff="$headroom"; fi
-  echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W load=${l1}/${LOAD_CEIL}) done=$(ls "$F/state/done" | wc -l)"
+  note="at cap"
+  if [ "$l1" -ge "$LOAD_CEIL" ]; then
+    eff=$(( W / 2 ))
+    [ "$eff" -lt 1 ] && eff=1
+    note="load ${l1} >= ${LOAD_CEIL}: half pool"
+  fi
+  if [ "$l1" -ge $(( LOAD_CEIL * 2 )) ]; then
+    eff=1
+    note="load ${l1} >= $(( LOAD_CEIL * 2 )): one worker"
+  fi
+  echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W load=${l1} ${note}) done=$(ls "$F/state/done" | wc -l)"
 
   if [ "$cnt" -eq 0 ]; then sleep 300; continue; fi
-  if [ "$eff" -lt 1 ]; then sleep 300; continue; fi
 
   xargs -a "$F/queue/pending.tsv" -d'\n' -P "$eff" -I{} bash -c '
     IFS=$'"'"'\t'"'"' read -r slug pkg scope <<< "{}"
