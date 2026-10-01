@@ -7,6 +7,11 @@ F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CODE="${MOJO_FACTORY_WORKDIR:-$(dirname "$F")}"
 GH_OWNER="${GH_OWNER:-lee101}"
 GIT_NAME="${GIT_NAME:-Lee Penkman}"
+# Both commit sites below expand $GIT_EMAIL. It was never given a default, and
+# `set -u` turns that into a fatal expansion error that kills the script at the
+# commit line -- so every port that finished three agent phases and a green gate
+# was thrown away one line before publish.
+GIT_EMAIL="${GIT_EMAIL:-leepenkman@gmail.com}"
 SLUG="$1"; PKG="$2"; SCOPE="${3:-}"
 REPO="$CODE/$SLUG"
 LOG="$F/logs/$SLUG.log"
@@ -47,22 +52,49 @@ claim || { echo "$SLUG already running"; exit 0; }
 trap 'rm -rf "$F/state/running/$SLUG"' EXIT
 
 gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
-# A missing tool is a broken environment, not a bad port. Scoring it as a build
-# failure burns the target's attempts without the compiler ever running, which is
-# how an entire queue can be exhausted in under a minute.
-ENV_FAULT_RE='command not found|: not found|No such file or directory|Permission denied|cannot open shared object|error while loading shared libraries|not a valid Mojo module'
+# Environment-level only. `No such file or directory` and `Permission denied` used
+# to live here too, and both fire on ordinary per-target failures -- a missing
+# Python module, a missing asset or script inside the ported repo -- so one bad
+# target was filed as a fault of the machine and stopped the entire fleet. A
+# broken environment is a missing toolchain binary or a loader failure, and every
+# target hits those regardless of how well it is ported.
+ENV_FAULT_RE='pixi: (command )?not found|mojo: (command )?not found|exec: [^ ]+: not found|error while loading shared libraries'
+# The factory starving its own compile semaphore is likewise neither a broken
+# environment nor a defect in the port. Charging it to the environment halts the
+# fleet; charging it to the target kills a good port. Both are wrong.
+SLOT_RE='no slot free after'
 # A flaky toolchain is a different class from a missing binary. The compiler
 # intermittently loses its runtime library when several workers hammer the same
 # box; a retry clears it in seconds, and it must not burn a target or halt the
 # whole factory the way a genuinely broken environment should.
 TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable packages|failed to extract|temporary failure in name resolution|TLS connection was interrupted'
+# Resource starvation is likewise not a port defect. A shared host that cannot fork
+# says "Resource temporarily unavailable" and core-dumps the compiler, which the
+# gate would otherwise charge to the target -- burning a try and eventually marking
+# a working port dead. Unlike a flaky toolchain this needs more than one quick
+# retry, so gate() backs off and waits for the box to breathe.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\)|Cannot allocate memory|Too many open files|cannot create thread'
+# A fault that is not the target's must not consume one of its MAXFAIL attempts.
+unaccount() {
+  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
+  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+}
 fail() {
   # Scan only what this run appended. log_off() at failure time would be the
   # current size, which makes the window empty and hides every fault.
-  if tail -c "+$(( LOG_BASE + 1 ))" "$LOG" 2>/dev/null | grep -qE "$ENV_FAULT_RE"; then
+  local w; w=$(tail -c "+$(( LOG_BASE + 1 ))" "$LOG" 2>/dev/null)
+  # Classify the narrowest thing first. Starvation is checked before the
+  # environment because a starved box also loses its binaries, and misreading
+  # that as a missing tool is what stopped this factory for three days.
+  if printf '%s' "$w" | grep -qE "$SLOT_RE|$RESOURCE_RE"; then
+    log "HOST STARVED, not a target failure: $* (attempt not counted)"
+    unaccount
+    gc_repo
+    exit 75
+  fi
+  if printf '%s' "$w" | grep -qE "$ENV_FAULT_RE"; then
     log "ENV FAULT, not a target failure: $* (attempt not counted)"
-    local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
-    [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+    unaccount
     rm -f "$F/state/failed/$SLUG"
     printf '%s %s: %s\n' "$(date -Is)" "$SLUG" "$*" > "$F/state/ENV_FAULT"
     gc_repo
@@ -78,8 +110,7 @@ agent_limited() { tail -c "+$(( ${1:-0} + 1 ))" "$LOG" 2>/dev/null | grep -qiE "
 limited() {
   local until_; until_=$(grep -oim1 'try again at [^.]*' "$LOG" | tail -1)
   log "agent quota hit: pausing factory, attempt not counted"
-  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
-  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+  unaccount
   # Either a parseable reset time or a bounded cooldown. Never write free text:
   # supervise.sh cannot parse it and would wedge the factory shut forever.
   if [ -n "$until_" ] && date -d "${until_#try again at }" +%s >/dev/null 2>&1; then
@@ -123,12 +154,16 @@ repair() { # <prompt>
     "$F/bin/agent.sh" "$REPO" high "$LOG"
 }
 
-raw_gate() { pixi run build >> "$LOG" 2>&1 && pixi run test >> "$LOG" 2>&1; }
+# Build and test are separate slots: build and test are not simultaneously hot
+# for every target, so interleaving them lets another target's build start while
+# this one is still testing. Capping the whole gate as one unit would idle slots.
+raw_gate() { "$F/bin/compile-slot.sh" pixi run build >> "$LOG" 2>&1 \
+  && "$F/bin/compile-slot.sh" pixi run test >> "$LOG" 2>&1; }
 # Retry once on a toolchain hiccup before believing the failure. Observed on
 # mojo-cdlib: the port passed 9 parity tests and its bench, then the final
 # build died on a missing CompilerRT library and rebuilt cleanly 28s later.
 gate() {
-  local off
+  local off i
   off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
   raw_gate && return 0
   if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$TRANSIENT_RE"; then
@@ -136,6 +171,15 @@ gate() {
     sleep 20
     raw_gate && { log "gate green on retry"; return 0; }
   fi
+  # A starved host clears on its own timescale, not in 20s. Wait for the load to
+  # come down and try again, rather than reporting a working port as broken.
+  for i in 1 2 3; do
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$RESOURCE_RE" || return 1
+    l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
+    log "host starved (load ${l1}), backing off before retry $i"
+    sleep $(( i * 120 ))
+    raw_gate && { log "gate green once the host had room"; return 0; }
+  done
   return 1
 }
 # ---------- publish ----------
@@ -146,8 +190,7 @@ park_publish() {
   log "PUBLISH PENDING: $SLUG"
   mkdir -p "$F/state/publish-retry"
   printf '%s publish-pending\n' "$SLUG" > "$F/state/publish-retry/$SLUG"
-  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
-  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+  unaccount
   rm -f "$F/state/failed/$SLUG"
   exit 75
 }

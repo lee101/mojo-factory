@@ -16,7 +16,26 @@ export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
 render() { sed -e "s/__SLUG__/$SLUG/g" -e "s/__MOJO_PIN__/$MOJO_PIN/g" "$1"; }
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
-gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }
+# Build and test take separate compile slots so another target's build can start
+# while this one is still testing. Capping the gate as one unit would idle slots.
+gate() { "$F/bin/compile-slot.sh" pixi run build >>"$LOG" 2>&1 \
+  && "$F/bin/compile-slot.sh" pixi run test >>"$LOG" 2>&1; }
+# A shared host that cannot fork core-dumps the compiler, and this script would
+# read that as a broken port and mark the target sweep-failed for good. Wait the
+# load out and retry instead; a real compile error still fails, just later.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\)|Cannot allocate memory|Too many open files|cannot create thread'
+gate_slow() {
+  local off i
+  off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+  gate && return 0
+  for i in 1 2 3; do
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$RESOURCE_RE" || return 1
+    log "host starved (load $(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)), backing off before retry $i"
+    sleep $(( i * 120 ))
+    gate && { log "gate green once the host had room"; return 0; }
+  done
+  return 1
+}
 
 # rc 75 means the provider is rate limited, not that the target is broken.
 agent() { printf '%s\n' "$1" | "$F/bin/agent.sh" "$REPO" high "$LOG"; }
@@ -48,23 +67,23 @@ render "$F/MOJO_NOTES.md" > "$REPO/MOJO_NOTES.md"
 sed -i -E "s|^(mojo[[:space:]]*=[[:space:]]*\")==[^\"]*|\1==${MOJO_PIN}|" pixi.toml
 # A dependency solve failure is the agent's problem to fix, not a reason to abandon
 # the target: stale `max` pins have conflicted with the mojo pin after a bump.
-if ! pixi install >>"$LOG" 2>&1; then
+if ! "$F/bin/compile-slot.sh" pixi install >>"$LOG" 2>&1; then
   log "install failed, agent repair pass"
   agent "pixi install fails in this repo: the dependency solve is unsatisfiable. Read the solver output in the tail of logs/sweep-$SLUG.log and the current pixi.toml. The usual cause is a pinned package (especially 'max') that demands a different mojo-compiler version than the pinned 'mojo'. Fix the pins so they are mutually consistent and resolve, then run 'pixi install' until it succeeds. Do not delete tests or source to work around a dependency problem."
-  pixi install >>"$LOG" 2>&1 || { log "install still failing"; finish; exit 1; }
+  "$F/bin/compile-slot.sh" pixi install >>"$LOG" 2>&1 || { log "install still failing"; finish; exit 1; }
   log "install repaired"
 fi
 
-if gate; then
+if gate_slow; then
   log "gate pass as-is"
 else
   log "gate failed, agent repair pass"
   agent "This port was written for an older Mojo and no longer builds against the pinned toolchain in pixi.toml. Read MOJO_NOTES.md first: it lists the dialect changes that matter (fn is now def, int()/float() are now Int()/Float64(), simdwidthof moved to std.sys, UnsafePointer is now Pointer, and parallelize/DeviceContext moved from the std packages to max.algorithm / max.gpu.host). Run 'pixi run build', fix the errors in src/ one at a time until it compiles, then run 'pixi run test' and fix until green. Keep the public Python API compatible and do not weaken or delete tests."
-  if gate; then
+  if gate_slow; then
     log "repaired gate pass"
   else
     agent "Still failing. Run 'pixi run build && pixi run test', fix the remaining failures. Keep the public Python API compatible; do not weaken tests."
-    if gate; then
+    if gate_slow; then
       log "second repair gate pass"
     else
       log "FAIL after repairs"; touch "$F/state/sweep-failed/$SLUG"; finish; exit 1

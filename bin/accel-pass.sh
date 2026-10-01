@@ -14,7 +14,26 @@ LOG="$F/logs/accel-$SLUG.log"
 export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
 
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
-gate() { pixi run build >>"$LOG" 2>&1 && pixi run test >>"$LOG" 2>&1; }
+# Build and test take separate compile slots so another target's build can start
+# while this one is still testing. Capping the gate as one unit would idle slots.
+gate() { "$F/bin/compile-slot.sh" pixi run build >>"$LOG" 2>&1 \
+  && "$F/bin/compile-slot.sh" pixi run test >>"$LOG" 2>&1; }
+# A starved host core-dumps the compiler; without this the pass would read that as
+# a regression, discard a correct optimization, and burn the target's tries. Wait
+# the load out and retry -- a real regression still fails, just later.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\)|Cannot allocate memory|Too many open files|cannot create thread'
+gate_slow() {
+  local off i
+  off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+  gate && return 0
+  for i in 1 2 3; do
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$RESOURCE_RE" || return 1
+    log "host starved (load $(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)), backing off before retry $i"
+    sleep $(( i * 120 ))
+    gate && { log "gate green once the host had room"; return 0; }
+  done
+  return 1
+}
 
 # rc 75 means the provider is rate limited, not that the target is broken.
 agent() { printf '%s\n' "$1" | "$F/bin/agent.sh" "$REPO" high "$LOG"; }
@@ -40,22 +59,22 @@ cd "$REPO" || { finish; exit 1; }
 PKG=$(git remote get-url origin | sed 's|.*/mojo-||; s|\.git$||')
 # A dependency solve failure is the agent's problem to fix, not a reason to abandon
 # the target: stale `max` pins have conflicted with the mojo pin after a bump.
-if ! pixi install >>"$LOG" 2>&1; then
+if ! "$F/bin/compile-slot.sh" pixi install >>"$LOG" 2>&1; then
   log "install failed, agent repair pass"
   agent "pixi install fails in this repo: the dependency solve is unsatisfiable. Read the solver output in the tail of logs/accel-$SLUG.log and the current pixi.toml. The usual cause is a pinned package (especially 'max') that demands a different mojo-compiler version than the pinned 'mojo'. Fix the pins so they are mutually consistent and resolve, then run 'pixi install' until it succeeds. Do not delete tests or source to work around a dependency problem."
-  pixi install >>"$LOG" 2>&1 || { log "install still failing"; finish; exit 1; }
+  "$F/bin/compile-slot.sh" pixi install >>"$LOG" 2>&1 || { log "install still failing"; finish; exit 1; }
   log "install repaired"
 fi
-gate || { log "baseline gate fails, run compat sweep first"; finish; exit 1; }
+gate_slow || { log "baseline gate fails, run compat sweep first"; finish; exit 1; }
 pixi run bench >"$F/logs/bench-$SLUG.before" 2>&1 || log "bench before failed (continuing)"
 
 agent "$(sed -e "s|{{SLUG}}|$SLUG|g" -e "s|{{PKG}}|$PKG|g" -e "s|{{SCOPE}}||g" \
   "$F/prompts/accel.md")"
 
-if ! gate; then
+if ! gate_slow; then
   log "accel regressed, repair pass"
   agent "Your optimization pass broke the build or tests. Run 'pixi run build && pixi run test', read the errors, and fix the regression without giving up the speedup."
-  if ! gate; then
+  if ! gate_slow; then
     log "FAIL, discarding changes"
     git reset --hard HEAD >/dev/null && git clean -fdq
     touch "$F/state/accel-failed/$SLUG"

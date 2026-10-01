@@ -5,16 +5,34 @@ set -uo pipefail
 F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export MOJO_FACTORY="$F"
 W="${1:-${WORKERS:-3}}"
+# This host is shared and production alone runs at a load of ~55 on 36 cores.
+# The configured pool is a ceiling, not a quota: below it, the pool shrinks to the
+# load headroom actually available. Sizing purely off the configured number is what
+# starves fork(), and a starved gate is scored as a broken port.
+LOAD_CEIL="${MOJO_FACTORY_LOAD_CEIL:-64}"
 
 while true; do
   # A paused or quota-limited factory must not chew through the queue.
   if [ -e "$F/state/PAUSED" ] || [ -e "$F/state/AGENT_LIMITED" ]; then sleep 300; continue; fi
   # Circuit breaker: a missing tool is an environment fault, and retrying the
   # whole queue against a broken environment exhausts every target in seconds.
+  # The halt is bounded. A permanent halt needs a permanent marker, but the marker
+  # is written by a single target's gate: if that classification is ever wrong the
+  # factory stops dead until a human notices, which is exactly what happened here.
+  # Age is the signal -- `mojo` lives inside each pixi env, so nothing outside an
+  # env can prove the compiler healthy. A genuinely broken environment re-trips
+  # the marker on its next target and resets this clock, so the worst case is one
+  # TTL of downtime per fault instead of forever.
   if [ -e "$F/state/ENV_FAULT" ]; then
-    echo "[$(date -Is)] env fault: $(head -1 "$F/state/ENV_FAULT") -- halting queue"
-    sleep 600
-    continue
+    fa=$(( $(date +%s) - $(stat -c %Y "$F/state/ENV_FAULT" 2>/dev/null || echo 0) ))
+    if [ "$fa" -ge "${ENV_FAULT_TTL:-1800}" ]; then
+      echo "[$(date -Is)] env fault stale (${fa}s): $(head -1 "$F/state/ENV_FAULT") -- resuming"
+      rm -f "$F/state/ENV_FAULT"
+    else
+      echo "[$(date -Is)] env fault: $(head -1 "$F/state/ENV_FAULT") -- halting queue for ${fa}s of ${ENV_FAULT_TTL:-1800}s"
+      sleep 600
+      continue
+    fi
   fi
   # Targets whose port is already built and gated and only failed to upload come
   # first: port.sh resumes them at the publish step, so they cost a push rather
@@ -38,11 +56,18 @@ while true; do
   cat "$F/queue/publish.tsv" >> "$F/queue/pending.tsv"
 
   cnt=$(wc -l < "$F/queue/pending.tsv")
-  echo "[$(date -Is)] pending=$cnt workers=$W done=$(ls "$F/state/done" | wc -l)"
+
+  # Pool size this round: the configured ceiling, shrunk to available headroom.
+  l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
+  eff="$W"
+  headroom=$(( LOAD_CEIL - l1 ))
+  if [ "$headroom" -lt "$eff" ]; then eff="$headroom"; fi
+  echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W load=${l1}/${LOAD_CEIL}) done=$(ls "$F/state/done" | wc -l)"
 
   if [ "$cnt" -eq 0 ]; then sleep 300; continue; fi
+  if [ "$eff" -lt 1 ]; then sleep 300; continue; fi
 
-  xargs -a "$F/queue/pending.tsv" -d'\n' -P "$W" -I{} bash -c '
+  xargs -a "$F/queue/pending.tsv" -d'\n' -P "$eff" -I{} bash -c '
     IFS=$'"'"'\t'"'"' read -r slug pkg scope <<< "{}"
     F="$MOJO_FACTORY"
     [ -e "$F/state/AGENT_LIMITED" ] || [ -e "$F/state/PAUSED" ] && exit 0
