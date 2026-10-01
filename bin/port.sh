@@ -115,7 +115,21 @@ TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable package
 # leaving an empty scaffold, and the gate then failed on
 # `build/build.sh: No such file or directory` -- two MAXFAIL attempts each spent
 # on the host killing the agent. run_agent names the case so it can be matched.
-RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed|agent killed by the host mid-phase'
+# The bare `Aborted` this replaces matched two unrelated things. The host runs
+# every agent inside a systemd scope with cores disabled, so bash prints a bare
+# `Aborted` for the agent runtime dying at startup -- that is the machine, and it
+# is what the term was added for. But it also matched the port's own compiler:
+# `build/build.sh: line 8: 935978 Aborted (core dumped) mojo build ...` is the
+# Mojo compiler crashing on the port's source, which is a defect of the port and
+# will crash identically on the next attempt and the one after that. Measured over
+# the target logs, the bare term matched 93 lines that are not host faults: 42
+# mojo-compiler core dumps, 43 the same crash seen through compile-slot.sh, and 7
+# pytest `Fatal Python error: Aborted`. Each of those spent the full
+# 120+240+360=720s of gate backoff waiting for load to drop before re-running a
+# build that was always going to core dump again. The agent-runtime aborts are
+# matched instead by their own two signatures: bash's job-control line for the
+# agent process, and the runtime's own crash banner.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ (Killed|Aborted)|Bun has crashed|agent killed by the host mid-phase'
 # An agent that was killed for writing nothing (agent.sh's stall watchdog, rc 76)
 # is the provider's failure, not the port's and not the machine's. Charging it to
 # the target burns one of its MAXFAIL attempts on a phase that never ran; charging
@@ -261,11 +275,20 @@ gate() {
   fi
   # A starved host clears on its own timescale, not in 20s. Wait for the load to
   # come down and try again, rather than reporting a working port as broken.
+  # `l1` is read only to be printed. It was never a condition here, and the log
+  # line used to read `host starved (load 77)` as though the load had been
+  # checked and found high. Nothing of the kind happens: the loop's only test is
+  # whether the gate's own output matches RESOURCE_RE. On a shared host whose
+  # load sits permanently at 74-81 that number is not evidence about this gate
+  # either way, so quoting it beside the word "starved" claims a measurement the
+  # code never made. The verdict is the signature; say so, and keep the load as
+  # the context it actually is. The backoff schedule below is unchanged -- how
+  # long a starved gate deserves is a policy call, not a defect.
   for i in 1 2 3; do
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE "$RESOURCE_RE" || return 1
     l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
     GATE_STARVED=1
-    log "host starved (load ${l1}), backing off before retry $i"
+    log "gate output matched a host-resource signature (load ${l1} for context), backing off before retry $i"
     sleep $(( i * 120 ))
     raw_gate && { log "gate green once the host had room"; return 0; }
   done
