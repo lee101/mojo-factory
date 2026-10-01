@@ -185,6 +185,22 @@ def test_a_stalled_agent_is_neither_the_targets_fault_nor_a_halt(tmp_path):
     assert "AGENT STALLED" in r["calls"]
 
 
+def test_a_rejected_credential_costs_no_target_an_attempt(tmp_path):
+    """Seen 2026-10-01: the OPENROUTER_API_KEY inherited from an interactive
+    shell was months stale, every agent phase answered `401 User not found` in
+    about five seconds, and twelve targets lost a MAXFAIL attempt to it before
+    anyone noticed -- a factory that looks like it ports badly and is actually
+    unable to call its model. The failure class has to exist, and it must cost
+    the queue nothing."""
+    r = classify(tmp_path,
+                 "Working...\n401 User not found.\n"
+                 "[2026-10-01T12:59:17+00:00] agent.sh: provider rejected the credential, rc=77\n")
+    assert r["marker"] == ""                  # not an environment fault either
+    assert r["failed"] == ""
+    assert r["attempts"] == "1"
+    assert "AGENT AUTH" in r["calls"]
+
+
 def _pool_size(tmp_path, room_stdout, workers=16):
     """Run the real pool-sizing block out of bin/runner.sh against a stub room.
 

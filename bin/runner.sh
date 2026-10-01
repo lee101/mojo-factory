@@ -9,6 +9,21 @@ W="${1:-${WORKERS:-3}}"
 while true; do
   # A paused or quota-limited factory must not chew through the queue.
   if [ -e "$F/state/PAUSED" ] || [ -e "$F/state/AGENT_LIMITED" ]; then sleep 300; continue; fi
+  # A credential the provider rejects kills every phase in about five seconds.
+  # Halting the dispatch is the only safe answer: handing target after target to
+  # an agent that cannot call the model is how twelve of them lost an attempt on
+  # 2026-10-01. The TTL means a marker left behind by a since-fixed key expires
+  # instead of parking the queue for good.
+  if [ -e "$F/state/AGENT_AUTH" ]; then
+    aa=$(( $(date +%s) - $(stat -c %Y "$F/state/AGENT_AUTH" 2>/dev/null || echo 0) ))
+    if [ "$aa" -ge "${AGENT_AUTH_TTL:-1800}" ]; then
+      echo "[$(date -Is)] auth marker stale (${aa}s): $(head -1 "$F/state/AGENT_AUTH") -- resuming"
+      rm -f "$F/state/AGENT_AUTH"
+    else
+      echo "[$(date -Is)] agent credential rejected (${aa}s of ${AGENT_AUTH_TTL:-1800}s): halting dispatch"
+      sleep 300; continue
+    fi
+  fi
   # Circuit breaker: a missing tool is an environment fault, and retrying the
   # whole queue against a broken environment exhausts every target in seconds.
   # The halt is bounded. A permanent halt needs a permanent marker, but the marker

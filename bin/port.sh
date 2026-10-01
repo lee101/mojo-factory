@@ -82,6 +82,10 @@ RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted \(core dumped\
 # the target burns one of its MAXFAIL attempts on a phase that never ran; charging
 # it to the environment halts the fleet for a condition that clears on its own.
 STALL_RE='killing stalled agent|stalled agent killed'
+# Mirrors AUTH_RE in agent.sh. A provider that rejects the credential kills every
+# phase in seconds; seen 2026-10-01, twelve targets lost an attempt to it before
+# anyone noticed, because nothing in the harness recognised the failure class.
+AGENT_AUTH_RE='401 User not found|401 Unauthorized|invalid[_ -]?api[_ -]?key|authentication_error|provider rejected the credential'
 # A fault that is not the target's must not consume one of its MAXFAIL attempts.
 unaccount() {
   local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
@@ -105,6 +109,14 @@ fail() {
   fi
   if window_has "$STALL_RE"; then
     log "AGENT STALLED, not a target failure: $* (attempt not counted)"
+    unaccount
+    gc_repo
+    exit 75
+  fi
+  if window_has "$AGENT_AUTH_RE"; then
+    # agent.sh already wrote state/AGENT_AUTH and the loops halt on it, so this
+    # target is handed back untouched rather than recorded as a bad port.
+    log "AGENT AUTH, not a target failure: $* (attempt not counted)"
     unaccount
     gc_repo
     exit 75

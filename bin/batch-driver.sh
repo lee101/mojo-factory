@@ -100,6 +100,19 @@ while true; do
   if [ -e "$F/state/AGENT_LIMITED" ] || [ -e "$F/state/OX_LIMITED" ] || [ -e "$F/state/PAUSED" ]; then
     log "held back: quota/disk guard active"; sleep 300; continue
   fi
+  # Same reasoning as runner.sh: a credential the provider rejects kills every
+  # sweep and accel phase in seconds, so the batch pool holds rather than burns
+  # attempts on agents that cannot call the model.
+  if [ -e "$F/state/AGENT_AUTH" ]; then
+    aa=$(( $(date +%s) - $(stat -c %Y "$F/state/AGENT_AUTH" 2>/dev/null || echo 0) ))
+    if [ "$aa" -ge "${AGENT_AUTH_TTL:-1800}" ]; then
+      log "auth marker stale (${aa}s): $(head -1 "$F/state/AGENT_AUTH") -- resuming"
+      rm -f "$F/state/AGENT_AUTH"
+    else
+      log "agent credential rejected (${aa}s of ${AGENT_AUTH_TTL:-1800}s): holding back"
+      sleep 300; continue
+    fi
+  fi
   # Same bound as runner.sh: an environment fault marker is written by one
   # target's gate, so trusting it forever means one bad classification stops
   # the backlog until a human notices. Age is the signal.

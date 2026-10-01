@@ -16,10 +16,21 @@ TIMEOUT="${PHASE_TIMEOUT:-14400}"
 # codex says "usage limit", OpenRouter says "rate limit"/"insufficient credits".
 # Deliberately specific: a bench table must never trip the quota watchdog.
 QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Requests|quota exceeded|insufficient credits'
+# A revoked or wrong credential is not a quota event and not a target failure:
+# every phase dies on it in seconds, so charging it to the port would burn the
+# whole queue's attempts while looking like a factory that ports badly. It gets
+# its own exit code, its own marker, and the loops halt until it is cleared.
+AUTH_RE='401 User not found|401 Unauthorized|invalid[_ -]?api[_ -]?key|authentication_error|No auth credentials found'
 OP_BUNNY="${OP_BUNNY:-$HOME/code/dotfiles/subagents/op-bunny.sh}"
 # The wrapper execs `op`, which lives in ~/.local/bin. cron gives a minimal PATH,
 # so guarantee it here rather than trusting every caller to have set it.
 export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
+# The credential is resolved here, once, from the file that is known to hold the
+# live key. An OPENROUTER_API_KEY inherited from an interactive shell can be
+# months stale -- on 2026-10-01 one was, and every agent phase returned
+# "401 User not found" in about five seconds. Preferring the file means a stale
+# export cannot take the fleet down.
+[ -f "$HOME/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 backend() {
   case "${MOJO_AGENT:-bunny}" in
     bunny)
@@ -64,6 +75,10 @@ pid=$!
       kill "$pid" 2>/dev/null
       exit
     }
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$AUTH_RE" && {
+      kill "$pid" 2>/dev/null
+      exit
+    }
     now=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
     if [ "$now" -gt "$size" ]; then
       size=$now
@@ -91,6 +106,12 @@ wait "$wd" 2>/dev/null
 if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -q 'killing stalled agent'; then
   echo "agent.sh: stalled agent killed, rc=76" >>"$LOG"
   exit 76
+fi
+if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$AUTH_RE"; then
+  mkdir -p "$F/state"
+  date -Is >"$F/state/AGENT_AUTH"
+  echo "agent.sh: provider rejected the credential, rc=77" >>"$LOG"
+  exit 77
 fi
 if tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$QUOTA_RE"; then
   date -Is >"$F/state/OX_LIMITED"
