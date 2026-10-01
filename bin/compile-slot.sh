@@ -139,7 +139,22 @@ cmd=$!
       last=$cur; idle=0; touch "$D/slot-$slot/hb"
     else
       idle=$(( idle + HB ))
-      [ "$idle" -ge "$IDLE" ] && exit
+      # Idle long enough that the build is wedged, and the lease has now been
+      # unrenewed for the whole TTL. Nothing else will take this slot back:
+      # reclaim only runs inside acquire(), and a wedged holder is by definition
+      # one nobody contends with. On 2026-10-01 two `pixi run build` trees that
+      # had consumed no CPU at all held slot-1 and slot-2 for 46 minutes against
+      # TTL=1200, every gate in the factory blocked, and the queue looked idle
+      # rather than broken. So the holder has to enforce its own TTL, which is
+      # only the existing CPU-idle rule made reachable -- no new threshold, and
+      # a build that is burning CPU is still never touched.
+      hb=$(stat -c %Y "$D/slot-$slot/hb" 2>/dev/null || echo 0)
+      if [ "$idle" -ge "$IDLE" ] && [ "$hb" -gt 0 ] \
+         && [ "$(( $(date +%s) - hb ))" -ge "$TTL" ]; then
+        echo "compile-slot.sh: stopping the wedged build (pid $cmd, idle ${idle}s, heartbeat $(( $(date +%s) - hb ))s old)" >&2
+        kill_tree "$cmd"
+        exit
+      fi
     fi
   done
 ) &

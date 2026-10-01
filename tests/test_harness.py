@@ -575,3 +575,45 @@ def test_the_keepalive_only_counts_a_real_driver_as_alive(tmp_path):
                 real.wait(timeout=30)
         time.sleep(0.5)
         assert not alive("runner.sh"), "driver still counted after it exited"
+
+
+def test_a_wedged_slot_holder_frees_its_own_slot_without_a_contender(tmp_path):
+    """A build that stops consuming CPU holds its slot until the TTL expires,
+    and the TTL has to be enforced by the holder itself.
+
+    Reclaim only runs inside acquire(), so it fires when some *other* target
+    contends for a slot. A wedged holder nobody contends with is never
+    reclaimed: two builds were measured holding slot-1 and slot-2 for 1647s
+    against TTL=1200, untouched, while the only other worker sat in an agent
+    phase. The pool had silently shrunk to nothing and the queue stalled behind
+    slots whose own TTL had already passed -- with nothing logged as an error.
+
+    The discriminator the factory relies on is CPU consumption, not wall clock,
+    so this also pins the other half: a slow build that is working must be
+    left alone even when it outlives the TTL.
+    """
+    factory = tmp_path / "factory"
+    (factory / "state" / "compile-slots").mkdir(parents=True)
+    env = {**os.environ, "MOJO_FACTORY": str(factory),
+           "COMPILE_SLOTS": "2", "COMPILE_SLOT_TTL": "8",
+           "COMPILE_SLOT_HB": "1", "COMPILE_SLOT_IDLE": "3",
+           "COMPILE_SLOT_WAIT": "10"}
+
+    # A build that never consumes CPU is wedged: it must stop itself and give
+    # the slot back, with no other process asking for a slot.
+    idle = subprocess.run(
+        ["bash", SLOT_SH, "sleep", "300"], env=env,
+        capture_output=True, text=True, timeout=90)
+    assert "stopping the wedged build" in idle.stderr, idle.stderr
+    assert idle.returncode != 0, "a stopped wedge must not report success"
+    assert os.listdir(factory / "state" / "compile-slots") == [], \
+        "the wedged holder did not release its slot"
+
+    # A build that burns CPU is working, however long it takes, and is not
+    # stopped: this is the property the IDLE check exists to protect.
+    busy = subprocess.run(
+        ["bash", SLOT_SH, "bash", "-c", "end=$((SECONDS+12)); while [ $SECONDS -lt $end ]; do :; done"],
+        env=env, capture_output=True, text=True, timeout=90)
+    assert "stopping the wedged build" not in busy.stderr, busy.stderr
+    assert busy.returncode == 0, busy.stderr
+    assert os.listdir(factory / "state" / "compile-slots") == []

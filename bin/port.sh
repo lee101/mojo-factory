@@ -80,7 +80,16 @@ TRANSIENT_RE='unable to locate Mojo CompilerRT|Could not find a suitable package
 # systemd scope with cores disabled, so bash prints a bare `Aborted` -- and the
 # regex did not match it. Six targets were failed as bad ports on 2026-10-01
 # for a bun runtime crash, one MAXFAIL attempt each.
-RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM'
+# A SIGKILLed agent is the machine taking the process away, never a property of
+# the port's source: agents run inside a systemd scope with MemoryMax, and the
+# OOM killer's SIGKILL is what the scope enforces. bash reports it as
+# `agent.sh: line 35: 2676670 Killed`. Nothing matched that, so the phase died,
+# the gate then failed on whatever the half-finished repo happened to be missing
+# (`build/build.sh: No such file or directory`), and mojo-scipy-sparse was filed
+# in state/failed as a bad port with two MAXFAIL attempts spent on a host kill.
+# This only removes a false failure: the string is bash's own job-control report
+# for an unhandled SIGKILL, which no compiler or test emits.
+RESOURCE_RE='Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed'
 # An agent that was killed for writing nothing (agent.sh's stall watchdog, rc 76)
 # is the provider's failure, not the port's and not the machine's. Charging it to
 # the target burns one of its MAXFAIL attempts on a phase that never ran; charging
@@ -249,11 +258,22 @@ publish() {
   for i in 1 2 3; do
     off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
     if git remote get-url origin >/dev/null 2>&1; then
-      git push -q origin HEAD >>"$LOG" 2>&1 && return 0
-    else
-      gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
-        --description "$desc" >>"$LOG" 2>&1 && published && return 0
+      if git push -q origin HEAD >>"$LOG" 2>&1; then return 0; fi
+      # A configured origin is not proof the repository exists. mojo-torch-scatter
+      # carried an origin for a repo that had never been created: the push failed
+      # with "Repository not found", which matches no rate-limit signal, so the
+      # target burned three attempts on every dispatch and could never reach
+      # state/done. Ask GitHub rather than inferring the remote from the local
+      # remote, and park instead of guessing when the repo is there and the push
+      # still failed -- that one needs a permission a port has no business fixing.
+      if [ "$(gh api "repos/$GH_OWNER/$SLUG" --jq .full_name 2>>"$LOG")" = "$GH_OWNER/$SLUG" ]; then
+        log "origin exists and $GH_OWNER/$SLUG is present, push failed anyway; parking"
+        park_publish
+      fi
+      log "origin points at a repository that does not exist, creating it"
     fi
+    gh repo create "$GH_OWNER/$SLUG" --public --source=. --push \
+      --description "$desc" >>"$LOG" 2>&1 && published && return 0
     # A throttled API is not going to clear in 60s; it clears in minutes, and
     # retrying into it only deepens the throttle. Park and let the next pass
     # pick the target up, which costs a push rather than a rebuild.

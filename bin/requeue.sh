@@ -10,7 +10,17 @@ MODE="${1:---verify}"
 MAXFAIL="${MAXFAIL:-2}"
 
 # A log that says the tool was missing never exercised the compiler.
-ENV_FAULT='pixi: command not found|mojo: not found|omp: not found|op: not found|exec: .*: not found|command not found'
+#
+# Only the *final* attempt's output counts, and the host-kill class is in the
+# same list, because that is the vocabulary port.sh's fail() already uses to
+# decide whether a failure belongs to the machine. Scanning the whole log let a
+# fault from days earlier brand a target forever: mojo-potpourri3d's log still
+# carries the `pixi: command not found` burst from 2026-09-26, well after PATH
+# was fixed at port.sh:74, so `requeue.sh --apply` would have sent a genuine
+# five-day 3D port failure back to the queue for a fault that had not existed
+# since Sunday. The window starts at the last `phase=` line, which is the start
+# of the attempt that wrote state/failed.
+ENV_FAULT='pixi: (command )?not found|mojo: (command )?not found|omp: (command )?not found|op: (command )?not found|exec: .*: not found|command not found|Resource temporarily unavailable|fork: retry|Aborted|Cannot allocate memory|Too many open files|cannot create thread|out of memory|JavaScript heap|OOM|agent\.sh: line [0-9]+: [0-9]+ Killed|killing stalled agent|stalled agent killed'
 
 reset=0
 declare -a SLUGS
@@ -20,7 +30,7 @@ for f in "$F"/state/failed/*; do
   log="$F/logs/$s.log"
   # No log, or a log whose only failures were a missing binary, is not evidence
   # that the port is bad.
-  if [ ! -f "$log" ] || grep -qE "$ENV_FAULT" "$log"; then
+  if [ ! -f "$log" ] || tail -n "+$(grep -n 'phase=' "$log" 2>/dev/null | tail -1 | cut -d: -f1)" "$log" 2>/dev/null | grep -qE "$ENV_FAULT"; then
     SLUGS+=("$s")
     reset=$((reset + 1))
   fi
