@@ -19,6 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT_SH = os.path.join(ROOT, "bin", "port.sh")
 SLOT_SH = os.path.join(ROOT, "bin", "compile-slot.sh")
 RUNNER_SH = os.path.join(ROOT, "bin", "runner.sh")
+LOADROOM_SH = os.path.join(ROOT, "bin", "loadroom.sh")
 
 
 def _port_source() -> str:
@@ -184,21 +185,24 @@ def test_a_stalled_agent_is_neither_the_targets_fault_nor_a_halt(tmp_path):
     assert "AGENT STALLED" in r["calls"]
 
 
-def _pool_size(tmp_path, load1, workers=16, ceil=64):
-    """Run the real pool-sizing block out of bin/runner.sh at a given load.
+def _pool_size(tmp_path, room_stdout, workers=16):
+    """Run the real pool-sizing block out of bin/runner.sh against a stub room.
 
     Lifted verbatim, like classify() does for port.sh: a test with its own copy
     of the arithmetic proves nothing about the arithmetic the factory runs.
     """
     src = open(RUNNER_SH, encoding="utf8").read()
-    block = src[src.index("# Pool size this round."):src.index('if [ "$cnt" -eq 0 ]')]
+    block = src[src.index("# Pool size this round"):src.index('if [ "$cnt" -eq 0 ]')]
     factory = tmp_path / "factory"
     (factory / "state" / "done").mkdir(parents=True, exist_ok=True)
+    room = tmp_path / "room.sh"
+    room.write_text(f"#!/usr/bin/env bash\necho {room_stdout}\n")
+    room.chmod(0o755)
     script = tmp_path / "pool.sh"
     script.write_text(
         'set -uo pipefail\n'
-        f'F={factory}\nW={workers}\nLOAD_CEIL={ceil}\ncnt=681\n'
-        f'LOAD1={load1}\n'
+        f'F={factory}\nW={workers}\ncnt=681\n'
+        f'MOJO_FACTORY_ROOM={room}\n'
         f'{block}\n'
         'echo "EFF=$eff"\n'
     )
@@ -207,21 +211,35 @@ def _pool_size(tmp_path, load1, workers=16, ceil=64):
     return int(r.stdout.split("EFF=")[1].split()[0])
 
 
-@pytest.mark.parametrize("load1", [0, 87, 128, 400, 9999])
-def test_the_pool_never_collapses_to_zero_workers(tmp_path, load1):
+def test_the_pool_never_collapses_to_zero_workers(tmp_path):
     """The wedge that survived every earlier fix: the pool was
     `LOAD_CEIL - loadavg`, which is negative whenever another tenant pushes the
     1-minute average past the ceiling, and a negative pool is a factory that
     never starts again. Observed at load 87 on a 72-core box while the
-    factory's own tree was seven processes. Under load it must ease off, never
-    stop -- bin/compile-slot.sh is what caps the heavy pixi trees."""
-    assert _pool_size(tmp_path, load1) >= 1
+    factory's own tree was seven processes -- and no error anywhere, because a
+    negative pool is a refusal, not a fault. Even a room that measures zero
+    must leave one worker running: an agent is network-bound, and the expensive
+    pixi tree is what compile-slot.sh caps."""
+    assert _pool_size(tmp_path, 0) == 1
 
 
-def test_the_pool_halves_under_load_and_crawls_when_the_box_is_gone(tmp_path):
-    assert _pool_size(tmp_path, 10) == 16      # room to spare: full pool
-    assert _pool_size(tmp_path, 64) == 8       # at the ceiling: half
-    assert _pool_size(tmp_path, 200) == 1      # twice the ceiling: crawl
+def test_the_pool_is_the_measured_room_capped_by_the_configured_workers(tmp_path):
+    assert _pool_size(tmp_path, 3) == 3         # measured room, passed through
+    assert _pool_size(tmp_path, 99, workers=4) == 4   # never above the ceiling
+
+
+def test_loadroom_reports_a_bounded_integer(tmp_path):
+    """bin/loadroom.sh samples the real /proc/stat. Whatever this box is doing,
+    the answer must be a whole number of workers inside the requested cap --
+    the load average it replaced could report neither."""
+    r = subprocess.run(
+        ["bash", LOADROOM_SH, "4"],
+        env={**os.environ, "MOJO_FACTORY_IDLE_SAMPLE": "1"},
+        capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    pool = int(r.stdout.strip())
+    assert 0 <= pool <= 4
+    assert "idle=" in r.stderr      # the number is always explained
 
 
 AGENT_SH = os.path.join(ROOT, "bin", "agent.sh")

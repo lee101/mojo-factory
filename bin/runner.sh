@@ -5,11 +5,6 @@ set -uo pipefail
 F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export MOJO_FACTORY="$F"
 W="${1:-${WORKERS:-3}}"
-# This host is shared and production alone runs at a load of ~55 on 36 cores.
-# The configured pool is a ceiling, not a quota: below it, the pool shrinks to the
-# load headroom actually available. Sizing purely off the configured number is what
-# starves fork(), and a starved gate is scored as a broken port.
-LOAD_CEIL="${MOJO_FACTORY_LOAD_CEIL:-64}"
 
 while true; do
   # A paused or quota-limited factory must not chew through the queue.
@@ -61,34 +56,26 @@ while true; do
 
   cnt=$(wc -l < "$F/queue/pending.tsv")
 
-  # Pool size this round.
+  # Pool size this round, measured rather than guessed.
   #
-  # Whole-box load average is a brake here, never a veto. This host is shared:
-  # production and a browser farm put the 1-minute average in the high 80s on
-  # 72 cores while the factory's own tree is seven processes. Subtracting that
-  # average from the ceiling produced a negative pool, the `eff < 1` guard
-  # caught it, and the runner logged a negative worker count every round
-  # forever -- a factory that never starts again. That is what held the queue
-  # at 338 while the log looked alive.
+  # bin/loadroom.sh samples /proc/stat and reports the cores nobody is using.
+  # Whole-box load average counts every tenant's runnable and uninterruptible
+  # task -- on this shared host, carrying ~14k threads, it read 76-105 against
+  # a ceiling of 64, so `LOAD_CEIL - loadavg` went negative and the dispatch
+  # loop took its "fewer than one worker" branch and slept for good. No new
+  # port completed after 2026-08-04 and nothing ever errored, because a
+  # negative pool is a refusal, not a fault: no breaker re-trips on it.
   #
-  # So: ease off under load, never stop. bin/compile-slot.sh is what actually
-  # caps the heavy pixi trees and the per-target claim() is what stops two
-  # workers taking the same repo; the agent pool only has to stay bounded.
-  # LOAD1 is an override so the sizing can be exercised without waiting for a
-  # real load spike to appear on the box.
-  l1=${LOAD1:-$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)}
-  eff="$W"
-  note="at cap"
-  if [ "$l1" -ge "$LOAD_CEIL" ]; then
-    eff=$(( W / 2 ))
-    [ "$eff" -lt 1 ] && eff=1
-    note="load ${l1} >= ${LOAD_CEIL}: half pool"
-  fi
-  if [ "$l1" -ge $(( LOAD_CEIL * 2 )) ]; then
-    eff=1
-    note="load ${l1} >= $(( LOAD_CEIL * 2 )): one worker"
-  fi
-  echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W load=${l1} ${note}) done=$(ls "$F/state/done" | wc -l)"
+  # ROOM is overridable so this arithmetic can be tested without a box that is
+  # busy on purpose.
+  ROOM="${MOJO_FACTORY_ROOM:-$F/bin/loadroom.sh}"
+  eff=$("$ROOM" "$W")
+  # A worker is an agent: network-bound, most of its life waiting on the model.
+  # The expensive thing is the pixi gate, capped far more tightly by
+  # compile-slot.sh. A busy box is a reason to go slowly, never a reason to stop.
+  [ "${eff:-0}" -lt 1 ] && eff=1
+  if [ "${eff:-0}" -gt "$W" ]; then eff="$W"; fi
+  echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W) done=$(ls "$F/state/done" | wc -l)"
 
   if [ "$cnt" -eq 0 ]; then sleep 300; continue; fi
 

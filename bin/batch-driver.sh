@@ -27,10 +27,10 @@ tries() { cat "$F/state/$1-tries/$2" 2>/dev/null || echo 0; }
 # exporting it made every child die with "tries: command not found" and an empty
 # integer comparison, which silently turned the MAXTRIES guard off.
 export -f tries
-# Dispatch ceiling on 1-minute load average. This host is shared; production alone
-# runs at ~55. Without a ceiling the pool sizes itself off disk and then starves
-# fork() the moment it overlaps production traffic.
-LOAD_CEIL="${MOJO_FACTORY_LOAD_CEIL:-64}"
+# Pool size comes from bin/loadroom.sh -- cores actually idle -- not from
+# load average. Production alone sits near the old ceiling of 64 on this shared
+# host, which made the subtraction permanently negative and parked this loop
+# as surely as it parked the port runner.
 
 mkdir -p "$F/state/swept" "$F/state/sweeping" "$F/state/sweep-attempted" "$F/state/sweep-tries" \
   "$F/state/accelled" "$F/state/accelling" "$F/state/accel-attempted" "$F/state/accel-tries" \
@@ -128,16 +128,11 @@ while true; do
   if [ "$afford" -lt 1 ]; then "$F/bin/gc.sh" 100 >/dev/null 2>&1; free=$(freeg)
     afford=$(( (free - RESERVE_GB) / PER_ENV_GB )); fi
   if [ "$afford" -lt 1 ]; then log "disk ${free}G below reserve ${RESERVE_GB}G, pausing"; sleep 600; continue; fi
+  # Same instrument as the port runner, for the same reason (see bin/loadroom.sh):
+  # whole-box load average said "no room" on a box that had room.
+  afford=$("$F/bin/loadroom.sh" "$W")
+  [ "${afford:-0}" -lt 1 ] && afford=1
   if [ "$afford" -gt "$W" ]; then afford="$W"; fi
-  l1=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)
-  if [ "${l1:-0}" -ge "$LOAD_CEIL" ]; then
-    log "load ${l1} at/over ceiling ${LOAD_CEIL}, holding back"; sleep 300; continue
-  fi
-  # Never add a full pool on top of an already-loaded box: scale the batch down as
-  # the box fills rather than stopping dead, so the accel backlog still drains.
-  headroom=$(( LOAD_CEIL - l1 ))
-  if [ "$headroom" -lt "$afford" ]; then afford=$headroom; fi
-  if [ "$afford" -lt 1 ]; then log "no load headroom (${l1}/${LOAD_CEIL}), holding back"; sleep 300; continue; fi
 
   left=$n
   [ "$left" -gt "$afford" ] && left="$afford"
