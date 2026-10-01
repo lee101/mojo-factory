@@ -39,22 +39,84 @@ TTL="${COMPILE_SLOT_TTL:-1200}"
 # slow work, so a build that is downloading or compiling is never disturbed.
 IDLE="${COMPILE_SLOT_IDLE:-600}"
 
+# Fork-free, for the same reason as kill_agent in agent.sh and with the same
+# evidence: this used `for c in $(pgrep -P "$p")`, and a command substitution
+# forks while pgrep forks again, so enumerating a tree that is two levels deep
+# cost four clone() calls. This is the script whose `fork: retry: Resource
+# temporarily unavailable` messages were filling logs/mojo-scikit-sparse.log on
+# 2026-10-01, so the clone() calls it needs are the very ones the host had
+# stopped granting, and 2>/dev/null made the failure look like an empty child
+# list. A holder that could not be reaped stayed holding its slot until the
+# TTL expired it, which is the wedge the TTL below exists to bound.
+#
+# SIGTERM is kept here, unlike agent.sh: a compile holder is work the factory
+# still wants the exit status of, and the TTL reclaims it if it ignores the
+# signal. Children are signalled before the parent so a dying parent cannot
+# re-parent a child out from under the walk.
+_CS_REAP=""
+_cs_walk() {
+  local p="$1" f c
+  for f in "/proc/$p/task/"*/children; do
+    [ -r "$f" ] || continue
+    while read -r c || [ -n "$c" ]; do
+      [ -z "$c" ] && continue
+      _cs_walk "$c"
+      _CS_REAP="$_CS_REAP $c"
+    done < "$f"
+  done
+  _CS_REAP="$_CS_REAP $p"
+}
 kill_tree() {
-  local p="${1:-}" c
-  [ -n "$p" ] || return 0
-  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c"; done
-  kill "$p" 2>/dev/null
+  [ -n "${1:-}" ] || return 0
+  _CS_REAP=""
+  _cs_walk "$1"
+  for _c in $_CS_REAP; do kill "$_c" 2>/dev/null; done
 }
 # utime+stime of a process and everything under it. /proc/<pid>/stat is cut
 # after the comm field so a process name containing spaces or parentheses cannot
 # shift the column numbers.
+#
+# Fork-free for the same reason as kill_tree, and it matters more here because
+# this runs on the heartbeat timer -- every $HB seconds, for every live slot --
+# rather than only when something has already gone wrong. The previous version
+# spent a `cut`, an `awk`, a `pgrep` and a command substitution per node of the
+# tree, all of which fork; a wide `pixi` build is hundreds of nodes, so a
+# single heartbeat could not complete on a host refusing clone(). The field
+# arithmetic ($12+$15 after the comm cut) is unchanged from the version that
+# used cut|awk: same columns, same total, so the TTL below expires exactly the
+# holders it expired before.
+_CS_CPU=0
+_cs_cpu_walk() {
+  local p="$1" f c line
+  [ -r "/proc/$p/stat" ] || return 0
+  # read is a builtin and the redirect is an open(2), so this costs no process.
+  # `read -r line` with no name reads the whole line into `line`, and /proc/pid/stat
+  # ends in a newline, so it cannot return early the way the children files do.
+  read -r line < "/proc/$p/stat" 2>/dev/null || return 0
+  # Strip pid and comm, keeping the post-comm field list. ${line##*')'} anchors on
+  # the LAST ')' so a comm containing ')' cannot shift the columns -- the same
+  # guarantee the old `cut -d')' -f2` gave, without the fork.
+  line="${line##*')'}"
+  # $12 and $15 after the comm cut are utime and stime, identical to what the
+  # cut|awk version summed, so the idle TTL below expires exactly the same
+  # holders. The fields are addressed with ${line} expansion into a positional
+  # list ONLY after every use of the function's own arguments is done: `set --`
+  # overwrites $1, which silently ended the children walk one level in and
+  # undercounted a build's CPU. Reading them via an array keeps $1 intact.
+  local -a fl=( $line )
+  _CS_CPU=$(( _CS_CPU + ${fl[11]:-0} + ${fl[14]:-0} ))
+  for f in "/proc/$p/task/"*/children; do
+    [ -r "$f" ] || continue
+    while read -r c || [ -n "$c" ]; do
+      [ -z "$c" ] && continue
+      _cs_cpu_walk "$c"
+    done < "$f"
+  done
+}
 tree_cpu() {
-  local p="${1:-}" t=0 c v
-  [ -n "$p" ] || { echo 0; return 0; }
-  v=$(cut -d')' -f2 "/proc/$p/stat" 2>/dev/null | awk '{print $12+$15}')
-  t=${v:-0}
-  for c in $(pgrep -P "$p" 2>/dev/null); do t=$(( t + $(tree_cpu "$c") )); done
-  echo "$t"
+  _CS_CPU=0
+  _cs_cpu_walk "${1:-}"
+  echo "$_CS_CPU"
 }
 HB="${COMPILE_SLOT_HB:-30}"
 D="$F/state/compile-slots"

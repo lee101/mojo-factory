@@ -64,11 +64,54 @@ pid=$!
 # mojo-csvkit's agent was found still running 2h17m after the phase that spawned
 # it had exited and its claim was gone, so the stall watchdog was reporting a
 # kill it had not performed and the fleet kept paying for the same target twice.
-kill_agent() {
-  local p="$1" c
-  for c in $(pgrep -P "$p" 2>/dev/null); do kill_agent "$c"; done
-  kill "$p" 2>/dev/null
+#
+# The walk is fork-free, and that is the whole point of it. This version used
+# `for c in $(pgrep -P "$p")`, and a command substitution forks -- as does pgrep
+# itself, so each level of the tree cost two clone() calls, on the exact host
+# condition that makes clone() return EAGAIN. Both failures were invisible: the
+# 2>/dev/null on pgrep swallowed the fork error, `$(...)` yielded the empty
+# string, the for loop iterated over nothing, and kill_agent killed only the
+# process it was handed. The agent below it survived, reparented to init, and
+# held ~70 threads and its share of the agentwork.slice for the rest of the
+# phase's natural life. Measured 2026-10-01: two such orphans, 253 threads
+# between them, both on targets (mojo-albumentations, mojo-imgaug) that had
+# already FAILED and been handed back to the queue, while the slice was
+# throttled hard enough to make clone() fail (memory.events high climbing
+# ~300/second). The leak and the starvation fed each other.
+#
+# /proc/<pid>/task/<tid>/children is maintained by the kernel and needs no
+# process at all, so enumeration cannot fail for want of one. The `|| [ -n "$c" ]`
+# is required rather than defensive: those files have no trailing newline, so
+# `read` sets the variable and then returns non-zero at EOF, and a plain
+# `while read` would silently discard every child it had just read.
+# Depth-first, children before the parent, so a killed parent cannot re-parent
+# a child out from under the walk. No command substitution: the recursion
+# appends to a global rather than through a subshell, which is what keeps this
+# at zero forks.
+_AGENT_REAP=""
+_agent_walk() {
+  local p="$1" f c
+  for f in "/proc/$p/task/"*/children; do
+    [ -r "$f" ] || continue
+    while read -r c || [ -n "$c" ]; do
+      [ -z "$c" ] && continue
+      _agent_walk "$c"
+      _AGENT_REAP="$_AGENT_REAP $c"
+    done < "$f"
+  done
+  _AGENT_REAP="$_AGENT_REAP $p"
 }
+kill_agent() {
+  [ -n "${1:-}" ] || return 0
+  _AGENT_REAP=""
+  _agent_walk "$1"
+  for _c in $_AGENT_REAP; do kill -9 "$_c" 2>/dev/null; done
+}
+# SIGKILL, not SIGTERM: the agent is being discarded for having said nothing for
+# AGENT_STALL_SECS. A TERM that it handles by finishing its turn is the same
+# leak with extra steps, and the watchdog has already decided this process is
+# past saving. kill_tree in compile-slot.sh keeps TERM because a compile slot
+# holder is a process the factory may still want to hear the end of.
 # A provider that starts waiting on quota is killed early rather than burning
 # the whole phase timeout -- and so is an agent that stops saying anything at
 # all. Observed 2026-10-01: mojo-csvkit's build phase sat for 90 minutes with
