@@ -100,8 +100,18 @@ while true; do
   if [ -e "$F/state/AGENT_LIMITED" ] || [ -e "$F/state/OX_LIMITED" ] || [ -e "$F/state/PAUSED" ]; then
     log "held back: quota/disk guard active"; sleep 300; continue
   fi
+  # Same bound as runner.sh: an environment fault marker is written by one
+  # target's gate, so trusting it forever means one bad classification stops
+  # the backlog until a human notices. Age is the signal.
   if [ -s "$F/state/ENV_FAULT" ]; then
-    log "held back: env fault $(head -1 "$F/state/ENV_FAULT")"; sleep 300; continue
+    fa=$(( $(date +%s) - $(stat -c %Y "$F/state/ENV_FAULT" 2>/dev/null || echo 0) ))
+    if [ "$fa" -ge "${ENV_FAULT_TTL:-1800}" ]; then
+      log "env fault stale (${fa}s): $(head -1 "$F/state/ENV_FAULT") -- resuming"
+      rm -f "$F/state/ENV_FAULT"
+    else
+      log "held back: env fault $(head -1 "$F/state/ENV_FAULT") (${fa}s of ${ENV_FAULT_TTL:-1800}s)"
+      sleep 300; continue
+    fi
   fi
 
   eligible > "$F/queue/batch.tsv"

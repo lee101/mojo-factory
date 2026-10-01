@@ -49,6 +49,10 @@ while true; do
   awk -F'\t' 'NF>=2 && $1 !~ /^#/' "$F/targets.tsv" | while IFS=$'\t' read -r slug pkg scope; do
     [ -e "$F/state/done/$slug" ] && continue
     [ -e "$F/state/running/$slug" ] && continue
+    # A target parked in needs-design needs a decision that is not the factory's
+    # to make -- which kernels to write, whether the work belongs on the GPU.
+    # Skipping it is only honest if the queue actually reads the marker.
+    [ -e "$F/state/needs-design/$slug" ] && continue
     n=$(cat "$F/state/attempts/$slug" 2>/dev/null || echo 0)
     [ "$n" -ge "${MAXFAIL:-2}" ] && continue
     printf '%s\t%s\t%s\n' "$slug" "$pkg" "$scope"
