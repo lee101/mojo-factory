@@ -127,10 +127,31 @@ while true; do
   echo "[$(date -Is)] pending=$cnt workers=$eff (cap=$W) done=$(ls "$F/state/done" | wc -l)"
 
   if [ "$cnt" -eq 0 ]; then sleep 300; continue; fi
+  # Bound the round. xargs reads its input once, at exec, from the inode it
+  # opened; the queue is rewritten in place behind it every time the loop comes
+  # back round, so a round that never ends is a queue that never updates. That
+  # is not hypothetical: the round opened at 14:25 on 2026-10-01 was still
+  # holding `queue/pending.tsv (deleted)` at 15:37, 538 targets deep at three at
+  # a time, so queue/publish.tsv had not been rebuilt since 14:31 and two ports
+  # that had already built and passed their gates -- mojo-torch-scatter and
+  # mojo-scipy-interpolate, each a push rather than an hour of agent work --
+  # could not be picked up at all until the whole queue drained. The
+  # publish-first ordering this runner already implements only helps at the top
+  # of a round, and rounds were measured in days.
+  #
+  # A slice, not the whole file: long enough that a target parked at the head
+  # (host-starved, which costs no attempt and so is never filtered out) cannot
+  # hold the queue on its own, short enough that the publish lane is rebuilt
+  # within a round rather than after one. Twelve is four waves at the usual
+  # three workers; a target costs tens of minutes, so the rebuild overhead is
+  # noise against it.
+  slice=$(( eff * 4 ))
+  head -n "$slice" "$F/queue/pending.tsv" > "$F/queue/round.tsv" || continue
+  [ -s "$F/queue/round.tsv" ] || { sleep 300; continue; }
   # `set -m` gives the round its own process group, so retire_round can signal
   # the xargs and everything it forked as one unit.
   set -m
-  xargs -a "$F/queue/pending.tsv" -d'\n' -P "$eff" -I{} bash -c '
+  xargs -a "$F/queue/round.tsv" -d'\n' -P "$eff" -I{} bash -c '
     IFS=$'"'"'\t'"'"' read -r slug pkg scope <<< "{}"
     F="$MOJO_FACTORY"
     [ -e "$F/state/AGENT_LIMITED" ] || [ -e "$F/state/PAUSED" ] && exit 0
