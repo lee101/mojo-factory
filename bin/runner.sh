@@ -90,6 +90,15 @@ while true; do
     # A target parked in needs-design needs a decision that is not the factory's
     # to make -- which kernels to write, whether the work belongs on the GPU.
     # Skipping it is only honest if the queue actually reads the marker.
+    # A target already in the publish lane must not also be emitted here. The
+    # two files are concatenated below, so emitting it twice dispatches the
+    # same target twice in one round: the first worker takes the claim, the
+    # second finds it held, prints "already running" and exits. The runner
+    # charges an attempt before calling port.sh, so each such collision cost
+    # the target one of its two MAXFAIL charges for work nobody did -- and a
+    # target parked in publish-retry is by definition one push from done, so
+    # the ones the publish lane exists to help were the ones it stranded.
+    [ -e "$F/state/publish-retry/$slug" ] && continue
     [ -e "$F/state/needs-design/$slug" ] && continue
     n=$(cat "$F/state/attempts/$slug" 2>/dev/null || echo 0)
     [ "$n" -ge "${MAXFAIL:-2}" ] && continue

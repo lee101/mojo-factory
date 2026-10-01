@@ -24,8 +24,23 @@ LOADROOM_SH = os.path.join(ROOT, "bin", "loadroom.sh")
 
 
 def _port_source() -> str:
+    """The classification block of bin/port.sh, verbatim.
+
+    Two anchors, and both matter. The start is the comment above
+    `unaccount()` rather than `ENV_FAULT_RE=`, because fail() calls unaccount
+    on every branch that is the machine's fault and these tests assert on the
+    attempt counter -- slicing below it would exercise a fail() whose helper
+    does not exist. The start is deliberately *above* `claim` and `gc_repo`
+    too, and the block is stitched rather than taken as one span, because
+    those two touch the filesystem and state/running: run verbatim in a test
+    they would mkdir real claims and rm real directories.
+    """
     src = open(PORT_SH, encoding="utf8").read()
-    return src[src.index("ENV_FAULT_RE="):src.index("# The agent running out of credit")]
+    unaccount = src[src.index("# A dispatch that does no work"):
+                    src.index("if [ -e \"$F/state/done/$SLUG\" ]")]
+    classification = src[src.index("ENV_FAULT_RE="):
+                         src.index("# The agent running out of credit")]
+    return unaccount + classification
 
 
 def classify(tmp_path, window: str):
@@ -645,3 +660,114 @@ def test_a_wedged_slot_holder_frees_its_own_slot_without_a_contender(tmp_path):
     assert "stopping the wedged build" not in busy.stderr, busy.stderr
     assert busy.returncode == 0, busy.stderr
     assert os.listdir(factory / "state" / "compile-slots") == []
+
+
+def _port_env(tmp_path, slug="mojo-x"):
+    """A tmp-rooted factory laid out the way port.sh expects to find it."""
+    factory = tmp_path / "factory"
+    for d in ("logs", "state/attempts", "state/failed", "state/done",
+              "state/running", "state/publish-retry", "state/needs-design"):
+        (factory / d).mkdir(parents=True, exist_ok=True)
+    return factory
+
+
+def _dispatch(factory, slug="mojo-x", pkg="x", scope="x"):
+    """Do what runner.sh's xargs child does: charge an attempt, then run port.sh.
+
+    The charge happens *before* the script is called, which is the whole point:
+    a dispatch that turns out to be a no-op has already been billed by the time
+    port.sh gets control, so the refund has to live inside port.sh.
+    """
+    n = int((factory / "state" / "attempts" / slug).read_text()
+            if (factory / "state" / "attempts" / slug).exists() else 0)
+    (factory / "state" / "attempts" / slug).write_text(f"{n + 1}\n")
+    work = factory.parent / "work"
+    work.mkdir(exist_ok=True)
+    env = {**os.environ, "MOJO_FACTORY": str(factory),
+           "MOJO_FACTORY_WORKDIR": str(work)}
+    return subprocess.run(["bash", str(PORT_SH), slug, pkg, scope],
+                          env=env, capture_output=True, text=True, timeout=120)
+
+
+def test_a_dispatch_that_does_no_work_costs_no_attempt(tmp_path):
+    """A dispatch that does no work must not spend one of the target's two
+    MAXFAIL attempts.
+
+    runner.sh charges state/attempts/$SLUG and only then calls port.sh, so by
+    the time either of these two exits is reached the target has already been
+    billed. Both are no-ops by construction: the port is already published, or
+    another live worker holds the claim. Both used to exit 0 with the charge
+    still on the counter.
+
+    This is how 170 targets ended up parked at MAXFAIL on 2026-10-01 with one
+    entry in state/failed and no record anywhere of why. A target filtered out
+    of the queue at `[ "$n" -ge MAXFAIL ]` is invisible: no failure was
+    recorded, so nothing -- not requeue.sh, not a human reading the log -- can
+    tell a target that failed twice from one that was merely dispatched twice.
+    """
+    # Already published: nothing to do.
+    factory = _port_env(tmp_path)
+    (factory / "state" / "done" / "mojo-x").write_text("")
+    r = _dispatch(factory)
+    assert "already done" in r.stdout, r.stdout
+    # Net zero, not "no file": the charge and the refund cancel, and what
+    # matters is the value the queue filter reads.
+    charged = factory / "state" / "attempts" / "mojo-x"
+    assert not charged.exists() or charged.read_text().strip() == "0", \
+        f"a dispatch to an already-published target left a charge: {charged.read_text()!r}"
+
+    # Claim held by a live process: the second worker of a duplicated dispatch.
+    factory = _port_env(tmp_path / "b")
+    claim = factory / "state" / "running" / "mojo-x"
+    claim.mkdir()
+    (claim / "pid").write_text(f"{os.getpid()}\n")
+    r = _dispatch(factory)
+    assert "already running" in r.stdout, r.stdout
+    assert (factory / "state" / "attempts" / "mojo-x").read_text().strip() == "0", \
+        "a dispatch that found the claim held was charged an attempt"
+
+
+def test_a_parked_target_is_not_dispatched_twice_in_one_round(tmp_path):
+    """The publish lane and the pending queue must not both carry a target.
+
+    runner.sh concatenates queue/publish.tsv onto queue/pending.tsv, so a slug
+    emitted by both halves is dispatched twice in the same round. The first
+    worker takes the claim; the second collides and no-ops. That is the
+    collision the refund above exists to make harmless, but refunding only
+    hides the cost -- the duplicate dispatch is itself the bug, and it hit the
+    targets the publish lane exists to help: a parked target is by definition
+    one push from done.
+
+    Reproduces the queue build from the real runner.sh against a factory with
+    one parked target, and asserts the slug is emitted exactly once.
+    """
+    factory = _port_env(tmp_path)
+    (factory / "targets.tsv").write_text(
+        "mojo-x\tx\tscope\n"
+        "mojo-y\ty\tscope\n"
+    )
+    for slug in ("mojo-x", "mojo-y"):
+        (factory / "state" / "attempts" / slug).write_text("0\n")
+    # mojo-x is parked in publish-retry: built, gated, only the push failed.
+    (factory / "state" / "publish-retry" / "mojo-x").write_text("mojo-x publish-pending\n")
+
+    # The queue rebuild, lifted out of the runner so the real filter runs.
+    src = open(RUNNER_SH, encoding="utf8").read()
+    start = src.index('  : > "$F/queue/publish.tsv"')
+    end = src.index("  cnt=$(wc -l < \"$F/queue/pending.tsv\")")
+    block = src[start:end].replace("  #", "#")
+
+    (factory / "queue").mkdir()
+    script = factory / "queue_build.sh"
+    script.write_text(f'set -uo pipefail\nF={factory}\n{block}\n')
+    subprocess.run(["bash", str(script)], check=False, timeout=60,
+                   capture_output=True, text=True)
+
+    lines = (factory / "queue" / "pending.tsv").read_text().splitlines()
+    slugs = [l.split("\t")[0] for l in lines if l.strip()]
+    assert slugs == sorted(set(slugs), key=slugs.index), \
+        f"a slug was emitted more than once: {slugs}"
+    assert slugs.count("mojo-x") == 1, slugs
+    # The parked target still has to be in the queue -- it is first so it is
+    # the next thing published, which is the entire point of the lane.
+    assert slugs[0] == "mojo-x", slugs

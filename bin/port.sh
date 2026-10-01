@@ -35,8 +35,29 @@ log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 # Everything after this byte is what this run appends; fail() needs the boundary
 # so a fault from a previous run cannot be mistaken for a fault now.
 LOG_BASE=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+# A dispatch that does no work must not cost the target one of its MAXFAIL
+# attempts. The runner increments state/attempts/$SLUG *before* calling this
+# script, so it has already been charged by the time control arrives here --
+# for a target that is already published, or whose claim another live worker
+# holds. Both exits below are no-ops by construction, and both used to exit 0
+# with the charge still on the counter.
+#
+# That is not a rounding error. runner.sh prepends queue/publish.tsv to
+# queue/pending.tsv, and the pending rebuild does not exclude the publish lane,
+# so every parked target is dispatched twice in the same round. The first
+# worker takes the claim; the second prints "already running" and exits 0. Two
+# rounds of that and a target that has never failed once is filtered out of the
+# queue for good at MAXFAIL, with no entry in state/failed and no line anywhere
+# saying why. Measured 2026-10-01: 367 no-op exits, 120 of the 170 targets
+# parked at MAXFAIL had taken one, and 30 held more charges than their logs
+# record real build failures.
+unaccount() {
+  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
+  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
+}
 
-if [ -e "$F/state/done/$SLUG" ]; then echo "$SLUG already done"; exit 0; fi
+
+if [ -e "$F/state/done/$SLUG" ]; then echo "$SLUG already done"; unaccount; exit 0; fi
 # stale-lock aware claim
 # A claim outliving its process is a leftover from a killed run, not a live worker.
 claim() {
@@ -48,7 +69,7 @@ claim() {
   rm -rf "$lock" && mkdir "$lock" 2>/dev/null && { echo $$ >"$lock/pid"; return 0; }
   return 1
 }
-claim || { echo "$SLUG already running"; exit 0; }
+claim || { echo "$SLUG already running"; unaccount; exit 0; }
 trap 'rm -rf "$F/state/running/$SLUG"' EXIT
 
 gc_repo() { rm -rf "$REPO/.pixi" "$REPO/dist" 2>/dev/null; }
@@ -104,11 +125,6 @@ STALL_RE='killing stalled agent|stalled agent killed'
 # phase in seconds; seen 2026-10-01, twelve targets lost an attempt to it before
 # anyone noticed, because nothing in the harness recognised the failure class.
 AGENT_AUTH_RE='401 User not found|401 Unauthorized|invalid[_ -]?api[_ -]?key|authentication_error|provider rejected the credential'
-# A fault that is not the target's must not consume one of its MAXFAIL attempts.
-unaccount() {
-  local n; n=$(cat "$F/state/attempts/$SLUG" 2>/dev/null || echo 1)
-  [ "$n" -gt 0 ] && echo $((n-1)) > "$F/state/attempts/$SLUG"
-}
 fail() {
   # Scan only what this run appended. log_off() at failure time would be the
   # current size, which makes the window empty and hides every fault. The window
