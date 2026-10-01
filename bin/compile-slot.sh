@@ -49,6 +49,25 @@ IDLE="${COMPILE_SLOT_IDLE:-600}"
 # list. A holder that could not be reaped stayed holding its slot until the
 # TTL expired it, which is the wedge the TTL below exists to bound.
 #
+# The walk was converted; the rest of the script was not, and on 2026-10-01
+# 18:06 that gap was the whole problem. acquire() opened every 3s tick with
+# `now=$(date +%s)` and `for s in $(seq 0 3)`, and the heartbeat read
+# `cur=$(tree_cpu ...)` and two more `$(date +%s)`. `seq` failing is not a
+# degraded scan, it is an empty scan: `for s in` with no words runs zero
+# iterations, so a contender that could not fork never once attempted a mkdir
+# and spun on `sleep 3` holding its worker while free slots sat beside it. The
+# two reads in `if [ "${cur:-0}" -gt "${last:-0}" ]` are guarded, so a failed
+# fork there reads as "no CPU this tick" -- the right verdict, reached by luck
+# rather than by design. The same shape had already been fixed in agent.sh's
+# watchdog, where `quiet=$(( $(date +%s) - since ))` yields an empty `quiet`
+# and `[ "" -ge 1800 ]` errors out, silently switching the stall watchdog off
+# on exactly the host that cannot afford to lose it.
+#
+# Hence: `$EPOCHSECONDS` instead of `date +%s`, `((s = 0; s < N; s++))` instead
+# of `$(seq 0 $((N-1)))`, `$(<file)` instead of `$(cat file)`. `stat` is left
+# alone -- bash has no builtin mtime -- so a contended scan still costs one
+# fork per slot per tick, which is one instead of the three it cost before.
+#
 # SIGTERM is kept here, unlike agent.sh: a compile holder is work the factory
 # still wants the exit status of, and the TTL reclaims it if it ignores the
 # signal. Children are signalled before the parent so a dying parent cannot
@@ -125,10 +144,10 @@ mkdir -p "$D"
 [ "$#" -eq 0 ] && { echo "compile-slot.sh: no command given" >&2; exit 2; }
 
 acquire() {
-  local waited=0 s p hb now
+  local waited=0 s p hb now stale
   while :; do
-    now=$(date +%s)
-    for s in $(seq 0 $((N - 1))); do
+    now=$EPOCHSECONDS
+    for ((s = 0; s < N; s++)); do
       if mkdir "$D/slot-$s" 2>/dev/null; then
         echo "$$" >"$D/slot-$s/pid"
         # The lease must be dated the instant the slot is taken, not on the
@@ -147,7 +166,7 @@ acquire() {
       fi
       # A slot outliving its process is a leftover from a killed run. Without this
       # reclaim one SIGKILL permanently shrinks the pool.
-      p=$(cat "$D/slot-$s/pid" 2>/dev/null)
+      p=; [ -r "$D/slot-$s/pid" ] && p=$(<"$D/slot-$s/pid")
       hb=$(stat -c %Y "$D/slot-$s/hb" 2>/dev/null || echo 0)
       # A missing hb file is not evidence of staleness. Reading it as 0 made the
       # age now-0, which is always >= TTL, so the one condition that should never
@@ -201,19 +220,30 @@ cmd=$!
       last=$cur; idle=0; touch "$D/slot-$slot/hb"
     else
       idle=$(( idle + HB ))
-      # Idle long enough that the build is wedged, and the lease has now been
-      # unrenewed for the whole TTL. Nothing else will take this slot back:
-      # reclaim only runs inside acquire(), and a wedged holder is by definition
+      # The holder is the only party that measures the build, so it is the only
+      # party that can judge the build. Nothing else will take a wedged slot
+      # back: reclaim runs inside acquire(), and a wedged holder is by definition
       # one nobody contends with. On 2026-10-01 two `pixi run build` trees that
-      # had consumed no CPU at all held slot-1 and slot-2 for 46 minutes against
-      # TTL=1200, every gate in the factory blocked, and the queue looked idle
-      # rather than broken. So the holder has to enforce its own TTL, which is
-      # only the existing CPU-idle rule made reachable -- no new threshold, and
-      # a build that is burning CPU is still never touched.
+      # had consumed no CPU at all held slot-1 and slot-2 for 46 minutes, every
+      # gate in the factory blocked, and the queue looked idle rather than
+      # broken.
+      #
+      # `idle` is that measurement, and it used to be a conjunct rather than the
+      # verdict: the test below also required now-hb >= TTL, so a build had to
+      # sit for IDLE and then for TTL again. Those are not two independent facts.
+      # hb is touched only while the tree is consuming CPU, so now-hb is the age
+      # of the very same last-CPU event `idle` counts from, re-read through a
+      # second threshold -- the same signal twice, with the second one 600s
+      # later. The cost was not theoretical: at 18:25 all four slots were leased
+      # to trees holding 0-1 CPU ticks (10ms) in 280-1000s, and with 4/4 leased
+      # four of five workers had no gate to run, `state/done` had not moved since
+      # 18:08, and the queue stood still. The header above already promises the
+      # rule this now implements: ten minutes of zero CPU, and a build that is
+      # burning CPU is still never touched.
       hb=$(stat -c %Y "$D/slot-$slot/hb" 2>/dev/null || echo 0)
-      if [ "$idle" -ge "$IDLE" ] && [ "$hb" -gt 0 ] \
-         && [ "$(( $(date +%s) - hb ))" -ge "$TTL" ]; then
-        echo "compile-slot.sh: stopping the wedged build (pid $cmd, idle ${idle}s, heartbeat $(( $(date +%s) - hb ))s old)" >&2
+      if [ "$idle" -ge "$IDLE" ] && [ "$hb" -gt 0 ]; then
+        age=$(( EPOCHSECONDS - hb ))
+        echo "compile-slot.sh: stopping the wedged build (pid $cmd, idle ${idle}s, heartbeat ${age}s old)" >&2
         kill_tree "$cmd"
         exit
       fi

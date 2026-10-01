@@ -121,7 +121,14 @@ kill_agent() {
 # Output growth is the only honest signal available: a working agent writes.
 (
   size=$off
-  since=$(date +%s)
+  # EPOCHSECONDS, not $(date +%s): this watchdog is the thing that has to keep
+  # working when the host is refusing clone(), and a failed fork left `since`
+  # empty, so `quiet` was empty too, `[ "" -ge 1800 ]` failed, and the stall
+  # watchdog switched itself off on exactly the host that cannot afford it.
+  # Same fault in the opposite direction: if the *first* `since` were the fork
+  # that failed, empty means 0 in arithmetic, quiet would read as ~1.79e9 and a
+  # perfectly healthy agent would be killed. Hence the fallback.
+  since=${since:-$EPOCHSECONDS}
   while kill -0 "$pid" 2>/dev/null; do
     sleep "${AGENT_POLL_SECS:-60}"
     tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qiE "$QUOTA_RE" && {
@@ -133,12 +140,12 @@ kill_agent() {
       exit
     }
     now=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
-    if [ "$now" -gt "$size" ]; then
+    if [ "${now:-0}" -gt "$size" ]; then
       size=$now
-      since=$(date +%s)
+      since=$EPOCHSECONDS
       continue
     fi
-    quiet=$(( $(date +%s) - since ))
+    quiet=$(( EPOCHSECONDS - since ))
     if [ "$quiet" -ge "${AGENT_STALL_SECS:-1800}" ]; then
       echo "[$(date -Is)] agent.sh: no output for ${quiet}s, killing stalled agent" >>"$LOG"
       kill_agent "$pid"
