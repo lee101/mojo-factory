@@ -18,6 +18,7 @@ while [ ! -e "$F/state/STOPWAVES" ]; do
   for s in $(ls "$F/state/done"); do
     d="$CODE/$s"; [ -d "$d/.git" ] || continue
     real "$s" && continue
+    [ -d "$F/state/phasing/$s" ] && continue
     [ -z "$(git -C "$d" status --porcelain)" ] || continue
     echo "$s" >>"$list"
     [ "$(wc -l <"$list")" -ge "$N" ] && break
