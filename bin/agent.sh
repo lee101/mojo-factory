@@ -84,7 +84,7 @@ backend() {
       local jf="$F/state/fxjson/$(basename "$DIR")"
       mkdir -p "$jf"
       (cd "$DIR" && exec env FX_PROVIDER=openpaths FX_MODEL="$MOJO_MODEL" \
-        FX_MAX_AGENT_STEPS="${FX_MAX_AGENT_STEPS:-80}" \
+        FX_MAX_AGENT_STEPS="${FX_MAX_AGENT_STEPS:-250}" \
         timeout "$TIMEOUT" "${FX_BIN:-$(. "$HOME/code/dotfiles/subagents/di-locate.sh" && di_bin fx)}" ask --full-access --no-color \
         --effort "$THINK" --json <"$pf" >"$jf/${pf##*.}.json")
       ;;
