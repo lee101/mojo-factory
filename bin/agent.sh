@@ -5,9 +5,14 @@
 #   agent.sh <repo-dir> [thinking-level] [logfile]
 #
 # Backend is env-selected, so switching models is one variable and not four edits:
-#   MOJO_AGENT=bunny  (default) -> the shared dotfiles op-bunny.sh (space-bunny-alpha)
-#   MOJO_AGENT=codex            -> legacy codex exec
+#   MOJO_AGENT=fxc -> di via di-crouton.sh (free stealth/crouton-alpha) (default)
+#   MOJO_AGENT=fx  -> di via di-bunny.sh (space-bunny-alpha)
+#   MOJO_AGENT=bunny -> the shared dotfiles op-bunny.sh (space-bunny-alpha)
+#   MOJO_AGENT=op  -> fx on OpenPaths, model from MOJO_MODEL (cheapest that fits)
+#   MOJO_AGENT=codex -> codex exec (legacy)
 set -uo pipefail
+MOJO_AGENT_OVERRIDE="${MOJO_AGENT:-fxc}"
+export MOJO_AGENT="$MOJO_AGENT_OVERRIDE"
 F="${MOJO_FACTORY:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DIR="${1:?usage: agent.sh <repo-dir> [thinking-level] [logfile]}"
 THINK="${2:-high}"
@@ -22,6 +27,8 @@ QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Reque
 # its own exit code, its own marker, and the loops halt until it is cleared.
 AUTH_RE='401 User not found|401 Unauthorized|invalid[_ -]?api[_ -]?key|authentication_error|No auth credentials found'
 OP_BUNNY="${OP_BUNNY:-$HOME/code/dotfiles/subagents/op-bunny.sh}"
+DI_BUNNY="${DI_BUNNY:-$HOME/code/dotfiles/subagents/di-bunny.sh}"
+DI_CROUTON="${DI_CROUTON:-$HOME/code/dotfiles/subagents/di-crouton.sh}"
 # The wrapper execs `op`, which lives in ~/.local/bin. cron gives a minimal PATH,
 # so guarantee it here rather than trusting every caller to have set it.
 export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
@@ -30,13 +37,56 @@ export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
 # months stale -- on 2026-10-01 one was, and every agent phase returned
 # "401 User not found" in about five seconds. Preferring the file means a stale
 # export cannot take the fleet down.
-[ -f "$HOME/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
+[ -z "${OPENROUTER_KEY_FROM_ENV:-}" ] && [ -f "$HOME/.openrouter_key" ] && export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 backend() {
-  case "${MOJO_AGENT:-bunny}" in
+  case "${MOJO_AGENT:-fxc}" in
+    op-free)
+      timeout "$TIMEOUT" "${OP_FREE:-$HOME/code/dotfiles/subagents/op-openpathsfree.sh}" \
+        -p --auto-approve --no-session --cwd "$DIR" "$(cat "$pf")"
+      ;;
+    di-free)
+      (cd "$DIR" && exec timeout "$TIMEOUT" \
+        "${DI_FREE:-$HOME/code/dotfiles/subagents/di-openpathsfree.sh}" \
+        ask --full-access --no-color --effort "$THINK" <"$pf")
+      ;;
     bunny)
       # The shared wrapper takes the model as baked in and the prompt as an argument.
       timeout "$TIMEOUT" "$OP_BUNNY" -p --auto-approve --no-session --no-title \
         --thinking "$THINK" --cwd "$DIR" "$(cat "$pf")"
+      ;;
+    di)
+      (cd "$DIR" && exec env -u OPENPATHS_API_KEY -u OPENAI_API_KEY \
+        timeout "$TIMEOUT" di ask --no-save --no-color --full-access \
+        --model "${DI_MODEL:-stealth/space-bunny-alpha}" <"$pf")
+      ;;
+    fx|fxc)
+      # di-bunny.sh pins the provider and the model, so this backend is a line of
+      # wiring rather than a fourth copy of the model name.
+      #
+      # fx is unusual in where it writes: operational progress goes to stderr and
+      # only the final JSON document to stdout. That split is load-bearing. The
+      # stall watchdog below judges liveness by log growth, so progress has to
+      # reach the log; and the token spend is reported only inside that JSON, so
+      # it has to be captured whole rather than tailed. Redirecting stdout into
+      # its own file gives both, and it means the exact input/output cost of a
+      # phase is readable without reading a single line of transcript.
+      local jf="$F/state/fxjson/$(basename "$DIR")"
+      mkdir -p "$jf"
+      local w="$DI_BUNNY"; [ "${MOJO_AGENT:-fxc}" = fxc ] && w="$DI_CROUTON"
+      (cd "$DIR" && exec "$w" ask --full-access --no-color \
+        --effort "$THINK" --json <"$pf" >"$jf/${pf##*.}.json")
+      ;;
+    op)
+      # Direct OpenPaths model by name. MOJO_MODEL picks the model, so the cheapest
+      # one that can do the phase is chosen by the caller, not baked in here.
+      : "${OPENPATHS_API_KEY:?OPENPATHS_API_KEY is required for MOJO_AGENT=op}"
+      : "${MOJO_MODEL:?MOJO_MODEL is required for MOJO_AGENT=op}"
+      local jf="$F/state/fxjson/$(basename "$DIR")"
+      mkdir -p "$jf"
+      (cd "$DIR" && exec env FX_PROVIDER=openpaths FX_MODEL="$MOJO_MODEL" \
+        FX_MAX_AGENT_STEPS="${FX_MAX_AGENT_STEPS:-80}" \
+        timeout "$TIMEOUT" "${FX_BIN:-$(. "$HOME/code/dotfiles/subagents/di-locate.sh" && di_bin fx)}" ask --full-access --no-color \
+        --effort "$THINK" --json <"$pf" >"$jf/${pf##*.}.json")
       ;;
     codex)
       local prof=ox; [ "$THINK" = low ] && prof=oxlow

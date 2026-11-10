@@ -24,15 +24,26 @@ VERDICTS="$F/state/phases/$SLUG/verdicts.txt"
 LOCK="$F/state/phasing/$SLUG"
 PKG=$(awk -F'\t' -v s="$SLUG" '$1==s{split($2,a," "); print a[1]}' "$F/targets.tsv")
 [ -z "$PKG" ] && PKG="${PKG_OVERRIDE:-$SLUG}"
-export MOJO_AGENT="${MOJO_AGENT:-fxc}" OPENROUTER_KEY_FROM_ENV=1
+export MOJO_AGENT="${MOJO_AGENT:-op}"
+# Cheapest first. Easy phases (tests, measurement, verification) go to a free model;
+# the kernel-rewriting phases go to DeepSeek Flash direct ($0.15/$0.60 per M, double at
+# peak hours). Override either per run.
+MODEL_EASY="${MODEL_EASY:-or/nemotron-3-ultra-550b-a55b:free}"
+# Cheapest DeepSeek route first, then the others as fallbacks: the direct route has
+# been seen to 400 mid-session ("reasoning_content ... must be passed back").
+MODEL_HARD="${MODEL_HARD:-nous/deepseek/deepseek-v4.1-flash}"
+MODEL_ALT1="${MODEL_ALT1:-deepseek-v4-flash-direct}"
+MODEL_ALT2="${MODEL_ALT2:-deepseek-v4-flash}"
+model_for() { case "$1" in test|analyze|verify) echo "$MODEL_EASY" ;; *) echo "$MODEL_HARD" ;; esac; }
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
 
+[ "$MOJO_AGENT" = op ] && [ -z "${OPENPATHS_API_KEY:-}" ] && { echo "phases.sh: OPENPATHS_API_KEY is required for MOJO_AGENT=op" >&2; exit 2; }
 log() { echo "[$(date -Is)] $SLUG: $*" | tee -a "$LOG"; }
 render() { sed -e "s|__SLUG__|$SLUG|g" -e "s|__PKG__|$PKG|g" "$1"; }
-gate() { "$F/bin/compile-slot.sh" pixi run build >>"$LOG" 2>&1 \
-  && "$F/bin/compile-slot.sh" pixi run test >>"$LOG" 2>&1; }
+gate() { timeout "${GATE_TIMEOUT:-2400}" "$F/bin/compile-slot.sh" pixi run build >>"$LOG" 2>&1 \
+  && timeout "${GATE_TIMEOUT:-2400}" "$F/bin/compile-slot.sh" pixi run test >>"$LOG" 2>&1; }
 verdict() { echo "$1 $2 $(date -Is) $(git rev-parse --short HEAD)" >>"$VERDICTS"; log "$1: $2"; }
 
 [ -d "$REPO/.git" ] || { log "no repo at $REPO"; exit 1; }
@@ -51,22 +62,35 @@ echo $$ >"$LOCK/pid"
 trap 'rm -rf "$LOCK" "$REPO/.pixi" "$REPO/dist"' EXIT
 
 run_phase() {
-  local p=$1 before rc
+  local p=$1 before rc chain
   local prompt="$F/prompts/phase-$p.md"
   [ -f "$prompt" ] || { log "no prompt for phase $p"; return 0; }
   before=$(git rev-parse HEAD)
-  render "$prompt" | "$F/bin/agent.sh" "$REPO" high "$LOG"; rc=$?
-  if [ "$rc" -eq 75 ]; then
+  # Cheapest model that fits the phase first; the paid model only when it fails.
+  # A model that is gone or rate limited is not a clean pass: reset, try the next,
+  # and when the last one fails record unavailable (not nochange) and stop the batch.
+  chain=("$(model_for "$p")" "$MODEL_HARD" "$MODEL_ALT1" "$MODEL_ALT2")
+  for m in "${chain[@]}"; do
+    off=$(stat -c%s "$LOG" 2>/dev/null || echo 0)
+    render "$prompt" | MOJO_MODEL="$m" "$F/bin/agent.sh" "$REPO" high "$LOG"; rc=$?
+    fail=0
+    [ "$rc" -eq 75 ] && fail=75
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE 'no longer available on OpenRouter|API request failed' && fail=76
+    [ "$fail" -eq 0 ] && break
     git reset -q --hard "$before"; git clean -fdq
-    log "provider limited during $p, stopping"
-    return 75
-  fi
+    log "$p: $m failed ($fail)"
+    if [ "$m" = "${chain[-1]}" ]; then
+      [ "$fail" -eq 76 ] && verdict "$p" unavailable
+      return "$fail"
+    fi
+  done
+  log "$p: model $m"
   if [ -z "$(git status --porcelain)" ]; then
     verdict "$p" nochange
   elif gate; then
     git add -A
     git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit -q \
-      -m "phase $p: agent pass, gate green" \
+      -m "phase $p: agent pass ($m), gate green" \
       -m "Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>"
     verdict "$p" kept
   else
