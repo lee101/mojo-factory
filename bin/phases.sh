@@ -29,12 +29,23 @@ export MOJO_AGENT="${MOJO_AGENT:-op}"
 # the kernel-rewriting phases go to DeepSeek Flash direct ($0.15/$0.60 per M, double at
 # peak hours). Override either per run.
 MODEL_EASY="${MODEL_EASY:-or/nemotron-3-ultra-550b-a55b:free}"
-# Cheapest DeepSeek route first, then the others as fallbacks: the direct route has
-# been seen to 400 mid-session ("reasoning_content ... must be passed back").
-MODEL_HARD="${MODEL_HARD:-nous/deepseek/deepseek-v4.1-flash}"
-MODEL_ALT1="${MODEL_ALT1:-deepseek-v4-flash-direct}"
-MODEL_ALT2="${MODEL_ALT2:-deepseek-v4-flash}"
-model_for() { case "$1" in test|analyze|verify) echo "$MODEL_EASY" ;; *) echo "$MODEL_HARD" ;; esac; }
+# DeepSeek direct first: it does real tool-using work. The nous/deepseek-v4.1-flash
+# route is cheaper per token but emits malformed tool arguments on real prompts, so
+# the agent loop aborts with no edits; it stays last in the chain, not first.
+# The direct route has been seen to 400 mid-session ("reasoning_content ... must be
+# passed back"), hence the other routes as fallbacks.
+MODEL_HARD="${MODEL_HARD:-deepseek-v4-flash-direct}"
+MODEL_ALT1="${MODEL_ALT1:-deepseek-v4-flash}"
+MODEL_ALT2="${MODEL_ALT2:-nous/deepseek/deepseek-v4.1-flash}"
+# The free model is flaky ("no healthy provider"). After one failure anywhere, skip it
+# for 30 minutes so a wide run does not spend minutes per phase retrying it.
+model_for() {
+  case "$1" in
+    test|analyze|verify)
+      if [ -n "$(find "$F/state/easy_down" -mmin -30 2>/dev/null)" ]; then echo "$MODEL_HARD"; else echo "$MODEL_EASY"; fi ;;
+    *) echo "$MODEL_HARD" ;;
+  esac
+}
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
@@ -75,10 +86,11 @@ run_phase() {
     render "$prompt" | MOJO_MODEL="$m" "$F/bin/agent.sh" "$REPO" high "$LOG"; rc=$?
     fail=0
     [ "$rc" -eq 75 ] && fail=75
-    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE 'no longer available on OpenRouter|API request failed' && fail=76
+    tail -c "+$((off + 1))" "$LOG" 2>/dev/null | grep -qE 'no longer available on OpenRouter|API request failed|Repeated malformed tool arguments' && fail=76
     [ "$fail" -eq 0 ] && break
     git reset -q --hard "$before"; git clean -fdq
     log "$p: $m failed ($fail)"
+    [ "$m" = "$MODEL_EASY" ] && touch "$F/state/easy_down"
     if [ "$m" = "${chain[-1]}" ]; then
       [ "$fail" -eq 76 ] && verdict "$p" unavailable
       return "$fail"

@@ -14,7 +14,6 @@ export PUSH="${PUSH:-1}" MOJO_FACTORY="$F"
 real() { grep -qE '^(test|analyze|unroll|simd|parallel|gpu|verify) (kept|reverted) ' "$F/state/phases/$1/verdicts.txt" 2>/dev/null; }
 n=$(ls "$F"/state/wave*.txt 2>/dev/null | wc -l)
 while [ ! -e "$F/state/STOPWAVES" ]; do
-  while pgrep -f '[x]args -a state/wave' >/dev/null; do sleep 60; done
   n=$((n + 1)); list="$F/state/wave$n.txt"; : >"$list"
   for s in $(ls "$F/state/done"); do
     d="$CODE/$s"; [ -d "$d/.git" ] || continue
