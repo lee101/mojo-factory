@@ -20,13 +20,16 @@ QUOTA_RE='usage limit|rate limit exceeded|rate_limit_exceeded|429 Too Many Reque
 # The one place the toolchain version is written down. The template and the notes
 # both interpolate it, so a bump is a one-line edit here instead of a sed across
 # 1400 repos plus a stale template that every new target is born from.
-MOJO_PIN="${MOJO_PIN:-1.2.0.dev2026092605}"
+MOJO_PIN="${MOJO_PIN:-1.2.0.dev2026092905}"
 [ -z "${OPENROUTER_API_KEY:-}" ] && [ -f "$HOME/.openrouter_key" ] && \
   export OPENROUTER_API_KEY="$(cat "$HOME/.openrouter_key")"
 # gh is authenticated purely from $GITHUB_TOKEN here; ~/.config/gh holds nothing,
 # so under cron it is logged out and every "gh repo create" would fail.
-[ -z "${GITHUB_TOKEN:-}" ] && [ -f "$HOME/.github_token" ] && \
+# Use the token file only when gh has no working login of its own: GITHUB_TOKEN in the
+# environment overrides gh's stored login, and a stale file made every publish fail 401.
+if [ -z "${GITHUB_TOKEN:-}" ] && [ -f "$HOME/.github_token" ] && ! gh auth status >/dev/null 2>&1; then
   export GITHUB_TOKEN="$(cat "$HOME/.github_token")"
+fi
 # cron gives a minimal PATH; without this every gate fails with "pixi: not found"
 # and the target is scored as a build failure that never happened.
 export PATH="$HOME/.pixi/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"
